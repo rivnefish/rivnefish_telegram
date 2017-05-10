@@ -2,19 +2,18 @@ extern crate iron;
 extern crate persistent;
 extern crate router;
 
+#[macro_use]
+extern crate serde_derive;
+
 use iron::prelude::*;
 use iron::typemap::Key;
 
 use persistent::State;
 
 use std::sync::{Arc, RwLock};
-//use std::fmt::Write;
 
 mod telegram;
 use telegram::*;
-
-#[macro_use]
-extern crate serde_derive;
 
 mod fish;
 
@@ -112,8 +111,8 @@ fn main() {
     let mut router = router::Router::new();
 
     let config = Config {
-        botname: std::env::var("BOT1_BOTNAME").unwrap_or(String::from("@")),
-        bottoken: std::env::var("BOT1_BOTTOKEN").unwrap_or(String::from("")),
+        botname: std::env::var("RVFISH_BOTNAME").unwrap_or(String::from("@")),
+        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or(String::from("")),
     };
 
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
@@ -129,8 +128,8 @@ fn main() {
 
     let bot_handler = move |req: &mut Request| bot(req, &config);
 
-    let listenpath: &str = &std::env::var("BOT1_LISTENPATH")
-        .unwrap_or(String::from("/bot1"));
+    let listenpath: &str = &std::env::var("RVFISH_LISTENPATH")
+        .unwrap_or(String::from("/bot"));
 
     let reload_handler = |req: &mut Request| reload_places(req);
 
@@ -144,7 +143,7 @@ fn main() {
     let mut chain = Chain::new(router);
     chain.link(State::<BotState>::both(botstate));
 
-    let listenaddr: &str = &std::env::var("BOT1_LISTENADDR")
+    let listenaddr: &str = &std::env::var("RVFISH_LISTENADDR")
         .unwrap_or(String::from("localhost:2358"));
 
     match Iron::new(chain).http(listenaddr) {
