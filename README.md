@@ -23,7 +23,7 @@ Telegram bot for quick lookup of fishing places, inspired by @imdb
 2. Configure it using environment variables:
   ```
   RVFISH_LISTENADDR=localhost:<port>
-  RVFISH_LISTENPATH=/<listenpath>
+  RVFISH_LISTENPATH=/<webhookpath>
   RVFISH_BOTNAME=@<botname>
   RVFISH_BOTTOKEN=<bottoken>
 
@@ -37,4 +37,4 @@ Telegram bot for quick lookup of fishing places, inspired by @imdb
   ```
   GET http://localhost:<port>/reload_places
   ```
-5. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<listenpath>`
+5. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
