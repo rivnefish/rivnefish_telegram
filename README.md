@@ -1,6 +1,8 @@
 # rivnefish_telegram [![Build Status](https://travis-ci.org/rivnefish/rivnefish_telegram.svg?branch=master)](https://travis-ci.org/rivnefish/rivnefish_telegram)
 Telegram bot for quick lookup of fishing places, inspired by @imdb
 
+Binaries can be found [here](https://dl.bintray.com/chyvonomys/rivnefish_telegram/)
+
 ## How to build
 
 0. Install some needed packages: `apt-get install build-essential pkg-config libssl-dev`
