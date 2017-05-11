@@ -1,4 +1,4 @@
-# rivnefish_telegram
+# rivnefish_telegram [![Build Status](https://travis-ci.org/rivnefish/rivnefish_telegram.svg?branch=master)](https://travis-ci.org/rivnefish/rivnefish_telegram)
 Telegram bot for quick lookup of fishing places, inspired by @imdb
 
 ## How to build
