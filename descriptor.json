@@ -1,0 +1,12 @@
+{
+    "package": {
+	"name": "rvfish_bot",
+	"repo": "rivnefish_telegram",
+	"subject": "chyvonomys"
+    },
+    "version": {
+	"name": "0.2.0"
+    },
+    "files": [{"includePattern": "target/debug/rvfish_bot"}],
+    "publish": true
+}
