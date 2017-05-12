@@ -12,8 +12,11 @@ use persistent::State;
 
 use std::sync::{Arc, RwLock};
 
+#[allow(dead_code)]
 mod telegram;
-use telegram::*;
+use telegram::{TgBotApi, TgUpdate,
+               TgInlineQuery, TgInlineQueryResult, TgAnswerInlineQuery,
+               TgInputMessageContent};
 
 mod fish;
 
@@ -101,6 +104,7 @@ fn reload_places(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(iron::status::Ok))
 }
 
+#[allow(dead_code)]
 struct Config {
     botname: String,
     bottoken: String,
@@ -116,7 +120,7 @@ fn main() {
     };
 
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
-        match read_update(&mut req.body) {
+        match telegram::read_update(&mut req.body) {
             Ok(upd) => if let Ok(arc_st) = req.get::<State<BotState>>() {
                 process_update(&arc_st, upd, cfg);
             },
