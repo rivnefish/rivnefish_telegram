@@ -11,6 +11,7 @@ use iron::typemap::Key;
 use persistent::State;
 
 use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
 
 #[allow(dead_code)]
 mod telegram;
@@ -19,6 +20,26 @@ use telegram::{TgBotApi, TgUpdate,
                TgInputMessageContent};
 
 mod fish;
+use fish::{RfApi, RfPlace, RfPlaceInfo};
+
+fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo> {
+    match st.write() {
+        Ok(mut guard) => {
+            let state = &mut *guard;
+            let cache = &mut state.cache;
+
+            if let Some(info) = cache.get(&id) {
+                return Some(info.clone());
+            }
+
+            match rfapi.fetch_place_info(id) {
+                Some(info) => { cache.insert(id, info.clone()); Some(info) },
+                None => None,
+            }
+        },
+        Err(_) => None,
+    }
+}
 
 type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
 
@@ -39,33 +60,34 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
             println!("IQ id {}, from user {}, query: {}",
                      iq_id, user.id, query_str);
 
-            let matching_places: Vec<fish::RfPlace> = match st.read() {
+            let matching_ids: Vec<i32> = match st.read() {
                 Ok(guard) => {
-                    let bs = &*guard;
-
-                    let places = &bs.places;
+                    let state = &*guard;
+                    let places = &state.places;
 
                     let query_upper = query_str.to_uppercase();
 
                     places.iter()
                         .filter(|p| p.name.to_uppercase().contains(&query_upper))
-                        .take(10).cloned().collect()
+                        .map(|p| p.id).take(10).collect()
                 },
                 Err(_) => Vec::new()
             };
 
-            let infos = matching_places.iter()
-                .map(|p| fish::fetch_place_info(p))
-                .filter(|opi| opi.is_some())
-                .map(|opi| opi.unwrap())
-                .map(|ref pi| TgInlineQueryResult {
+            let rfapi = fish::RfApi::new();
+
+            let infos = matching_ids.iter()
+                .map(|i| get_info_for(st, &rfapi, *i))
+                .filter(|ci| ci.is_some())
+                .map(|ci| ci.unwrap())
+                .map(|pi| TgInlineQueryResult {
                     type_: String::from("article"),
                     id: format!("iqid_{}", pi.id),
                     title: pi.name.clone(),
                     description: pi.description.clone(),
                     thumb_url: pi.thumbnail.clone(),
                     input_message_content: TgInputMessageContent {
-                        message_text: fish::get_place_text(pi),
+                        message_text: fish::get_place_text(&pi),
                     },
                 })
                 .collect::<Vec<_>>();
@@ -82,7 +104,8 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
 }
 
 struct BotState {
-    places: Vec<fish::RfPlace>,
+    places: Vec<RfPlace>,
+    cache: HashMap<i32, RfPlaceInfo>,
 }
 
 impl Key for BotState {
@@ -90,7 +113,8 @@ impl Key for BotState {
 }
 
 fn reload_places(req: &mut Request) -> IronResult<Response> {
-    let new_places = fish::fetch_all_places();
+    let rfapi = fish::RfApi::new();
+    let new_places = rfapi.fetch_all_places();
 
     if let Ok(arc_st) = req.get::<State<BotState>>() {
         if let Ok(mut guard) = arc_st.write() {
@@ -98,6 +122,9 @@ fn reload_places(req: &mut Request) -> IronResult<Response> {
 
             let places = &mut bs.places;
             *places = new_places;
+
+            let cache = &mut bs.cache;
+            cache.clear();
         }
     }
 
@@ -142,6 +169,7 @@ fn main() {
 
     let botstate = BotState {
         places: Vec::new(),
+        cache: HashMap::new(),
     };
 
     let mut chain = Chain::new(router);
