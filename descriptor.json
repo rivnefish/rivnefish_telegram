@@ -1,15 +1,16 @@
 {
     "package": {
-	"name": "rvfish_bot",
-	"repo": "rivnefish_telegram",
-	"subject": "chyvonomys"
+        "name": "rvfish_bot",
+        "repo": "rivnefish_telegram",
+        "subject": "chyvonomys"
     },
     "version": {
-	"name": "0.2.0"
+        "name": "0.2.0"
     },
     "files": [{
-	"includePattern": "target/release/rvfish_bot",
-	"uploadPattern": "rvfish_bot"
+        "includePattern": "target/release/rvfish_bot",
+        "uploadPattern": "rvfish_bot",
+        "matrixParams": { "override": 1 }
     }],
     "publish": true
 }
