@@ -23,22 +23,28 @@ mod fish;
 use fish::{RfApi, RfPlace, RfPlaceInfo};
 
 fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo> {
-    match st.write() {
-        Ok(mut guard) => {
-            let state = &mut *guard;
-            let cache = &mut state.cache;
+    match st.read() {
+        Ok(guard) => {
+            let state = &*guard;
+            let cache = &state.cache;
 
             if let Some(info) = cache.get(&id) {
-                return Some(info.clone());
-            }
-
-            match rfapi.fetch_place_info(id) {
-                Some(info) => { cache.insert(id, info.clone()); Some(info) },
-                None => None,
+                return info.clone()
             }
         },
-        Err(_) => None,
+        Err(_) => return None
     }
+
+    let fetched = rfapi.fetch_place_info(id);
+
+    if let Ok(mut guard) = st.write() {
+        let state = &mut *guard;
+        let cache = &mut state.cache;
+
+        cache.insert(id, fetched.clone());
+    }
+
+    fetched
 }
 
 type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
@@ -105,7 +111,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
 
 struct BotState {
     places: Vec<RfPlace>,
-    cache: HashMap<i32, RfPlaceInfo>,
+    cache: HashMap<i32, Option<RfPlaceInfo>>,
 }
 
 impl Key for BotState {
