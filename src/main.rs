@@ -1,6 +1,7 @@
 extern crate iron;
 extern crate persistent;
 extern crate router;
+extern crate time;
 
 #[macro_use]
 extern crate serde_derive;
@@ -9,6 +10,8 @@ use iron::prelude::*;
 use iron::typemap::Key;
 
 use persistent::State;
+
+use time::PreciseTime;
 
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
@@ -63,8 +66,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
             }),
             ..
         } => {
-            println!("IQ id {}, from user {}, query: {}",
-                     iq_id, user.id, query_str);
+            let t0 = PreciseTime::now();
 
             let matching_ids: Vec<i32> = match st.read() {
                 Ok(guard) => {
@@ -97,6 +99,11 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
                     },
                 })
                 .collect::<Vec<_>>();
+
+            let t1 = PreciseTime::now();
+
+            println!("IQ id {}, from user {}, query: {}, took {}",
+                     iq_id, user.id, query_str, t0.to(t1));
 
             tg.send_json("/answerInlineQuery", TgAnswerInlineQuery {
                 inline_query_id: iq_id,
