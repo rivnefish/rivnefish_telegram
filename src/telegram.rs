@@ -128,7 +128,8 @@ impl TgInlineKeyboardMarkup {
 #[derive(Serialize)]
 pub struct TgInlineKeyboardButton {
     pub text: String,
-    pub callback_data: String,
+    pub url: Option<String>,
+    pub callback_data: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -144,13 +145,18 @@ pub struct TgInlineQueryResult {
     pub id: String,
     pub title: String,
     pub description: String,
+    pub url: String,
+    pub hide_url: bool,
     pub thumb_url: String,
+    pub reply_markup: Option<TgInlineKeyboardMarkup>,
     pub input_message_content: TgInputMessageContent,
 }
 
 #[derive(Serialize)]
 pub struct TgInputMessageContent {
     pub message_text: String,
+    pub parse_mode: String,
+    pub disable_web_page_preview: bool,
 }
 
 const BASEURL: &'static str = "https://api.telegram.org";

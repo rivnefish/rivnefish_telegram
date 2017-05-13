@@ -15,8 +15,9 @@ pub struct RfPlaceInfo {
     pub name: String,
     pub url: String,
     pub description: String,
-    pub rating_avg: String,
-    pub thumbnail: String,
+    pub rating_avg: Option<String>,
+    pub rating_votes: Option<i32>,
+    pub thumbnail: Option<String>,
     pub id: i32,
 }
 
@@ -67,7 +68,16 @@ impl RfApi {
     }
 }
 
+pub fn get_place_short_desc(place: &RfPlaceInfo, sz: usize) -> String {
+    let end = place.description.char_indices().map(|(p, _)| p).nth(sz);
+    let short_desc = &place.description[..end.unwrap_or(place.description.len())];
+    format!("{}{}", short_desc, end.map_or("", |_| "..."))
+}
+
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!("{}\nRating: {}\n{}\n{}",
-            place.name, place.rating_avg, place.description, place.url)
+    format!("<b>{}</b>\n<i>Рейтинг: {}({} голосів)</i>\n{}",
+            place.name,
+            match place.rating_avg { Some(ref s) => s, None => "--" },
+            place.rating_votes.unwrap_or(0),
+            get_place_short_desc(place, 300))
 }

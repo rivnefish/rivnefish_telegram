@@ -20,6 +20,7 @@ use std::collections::HashMap;
 mod telegram;
 use telegram::{TgBotApi, TgUpdate,
                TgInlineQuery, TgInlineQueryResult, TgAnswerInlineQuery,
+               TgInlineKeyboardMarkup, TgInlineKeyboardButton,
                TgInputMessageContent};
 
 mod fish;
@@ -89,14 +90,25 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                 .filter(|ci| ci.is_some())
                 .map(|ci| ci.unwrap())
                 .map(|pi| TgInlineQueryResult {
-                    type_: String::from("article"),
+                    type_: "article".to_owned(),
                     id: format!("iqid_{}", pi.id),
                     title: pi.name.clone(),
                     description: pi.description.clone(),
-                    thumb_url: pi.thumbnail.clone(),
+                    url: pi.url.clone(),
+                    hide_url: true,
+                    thumb_url: pi.thumbnail.clone().unwrap_or("".to_owned()),
                     input_message_content: TgInputMessageContent {
                         message_text: fish::get_place_text(&pi),
+                        parse_mode: "HTML".to_owned(),
+                        disable_web_page_preview: true,
                     },
+                    reply_markup: Some(TgInlineKeyboardMarkup {
+                        inline_keyboard: vec![vec![TgInlineKeyboardButton {
+                            text: "детальніше".to_owned(),
+                            url: Some(pi.url.clone()),
+                            callback_data: None,
+                        }]]
+                    }),
                 })
                 .collect::<Vec<_>>();
 
