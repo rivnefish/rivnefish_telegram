@@ -13,7 +13,7 @@ Binaries can be found [here](https://dl.bintray.com/chyvonomys/rivnefish_telegra
 
 ## How to use
 
-0. Register your bot with @BotFather: pick `<botname>`, obtain `<bottoken>` and enable inline mode for your bot.
+0. Register your bot with @BotFather: pick `<botname>`, obtain `<bottoken>`, enable inline mode with `/setinline` and optionally enable inline feedback by changing `/setinlinefeedback` to `Enabled` for your bot.
 
 1. Set webhook:
   ```
@@ -24,12 +24,10 @@ Binaries can be found [here](https://dl.bintray.com/chyvonomys/rivnefish_telegra
   ```
 2. Configure it using environment variables:
   ```
-  RVFISH_LISTENADDR=localhost:<port>
-  RVFISH_LISTENPATH=/<webhookpath>
-  RVFISH_BOTNAME=@<botname>
-  RVFISH_BOTTOKEN=<bottoken>
-
-  export RVFISH_LISTENADDR RVFISH_LISTENPATH RVFISH_BOTNAME RVFISH_BOTTOKEN
+  export RVFISH_LISTENADDR=localhost:<port>
+  export RVFISH_LISTENPATH=/<webhookpath>
+  export RVFISH_BOTNAME=@<botname>
+  export RVFISH_BOTTOKEN=<bottoken>
   ```
 3. Run the executable:
   ```

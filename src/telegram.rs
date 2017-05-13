@@ -72,6 +72,7 @@ pub struct TgUpdate {
     pub message: Option<TgMessage>,
     pub callback_query: Option<TgCallbackQuery>,
     pub inline_query: Option<TgInlineQuery>,
+    pub chosen_inline_result: Option<TgChosenInlineResult>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -157,6 +158,15 @@ pub struct TgInputMessageContent {
     pub message_text: String,
     pub parse_mode: String,
     pub disable_web_page_preview: bool,
+}
+
+// NOTE: this works only if bot has inline feedback enabled
+#[derive(Deserialize, Debug)]
+pub struct TgChosenInlineResult {
+    pub result_id: String,
+    pub from: TgUser,
+    pub inline_message_id: Option<String>,
+    pub query: String,
 }
 
 const BASEURL: &'static str = "https://api.telegram.org";

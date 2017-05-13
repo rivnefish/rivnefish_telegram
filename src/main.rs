@@ -21,7 +21,7 @@ mod telegram;
 use telegram::{TgBotApi, TgUpdate,
                TgInlineQuery, TgInlineQueryResult, TgAnswerInlineQuery,
                TgInlineKeyboardMarkup, TgInlineKeyboardButton,
-               TgInputMessageContent};
+               TgInputMessageContent, TgChosenInlineResult};
 
 mod fish;
 use fish::{RfApi, RfPlace, RfPlaceInfo};
@@ -56,6 +56,16 @@ type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
 fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config) {
     let tg = TgBotApi::new(&cfg.bottoken);
     match upd {
+        TgUpdate {
+            chosen_inline_result: Some(TgChosenInlineResult {
+                result_id,
+                inline_message_id: Some(imi),
+                ..
+            }),
+            ..
+        } => {
+            println!("CIR: resuldid: {}, inline msg id: {}", result_id, imi);
+        },
         TgUpdate {
             message: None,
             callback_query: None,
