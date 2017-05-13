@@ -287,13 +287,13 @@ pub fn make_name(user: &TgUser) -> String {
     res
 }
 
-pub fn read_update(src: &mut Read) -> Result<TgUpdate, String> {
+pub fn read_update(src: &mut Read) -> Result<(TgUpdate, String), String> {
     let mut body = String::new();
     src.read_to_string(&mut body).unwrap();
 
     match serde_json::from_str::<TgUpdate>(&body) {
         Ok(upd) => {
-            Ok(upd)
+            Ok((upd, body))
         }
         Err(err) => {
             let mut errstr = String::new();

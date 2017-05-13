@@ -52,7 +52,7 @@ fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo
 
 type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
 
-fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
+fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config) {
     let tg = TgBotApi::new(&cfg.bottoken);
     match upd {
         TgUpdate {
@@ -112,6 +112,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, cfg: &Config) {
         }
         _ => {
             println!("received unsupported update: {:#?}", &upd);
+            println!("original text: {}", &updstr);
         }
     }
 }
@@ -161,8 +162,8 @@ fn main() {
 
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
         match telegram::read_update(&mut req.body) {
-            Ok(upd) => if let Ok(arc_st) = req.get::<State<BotState>>() {
-                process_update(&arc_st, upd, cfg);
+            Ok((upd, updstr)) => if let Ok(arc_st) = req.get::<State<BotState>>() {
+                process_update(&arc_st, upd, updstr, cfg);
             },
             Err(err) => println!("read_update error: {}", err),
         }
