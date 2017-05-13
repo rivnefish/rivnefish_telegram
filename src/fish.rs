@@ -75,8 +75,9 @@ pub fn get_place_short_desc(place: &RfPlaceInfo, sz: usize) -> String {
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!("<b>{}</b>\n<i>Рейтинг: {}({} голосів)</i>\n{}",
+    format!("<b>{}</b><a href=\"{}\">:</a>\n<i>Рейтинг: {}({} голосів)</i>\n{}",
             place.name,
+            match place.thumbnail { Some(ref s) => s, None => "" },
             match place.rating_avg { Some(ref s) => s, None => "--" },
             place.rating_votes.unwrap_or(0),
             get_place_short_desc(place, 300))
