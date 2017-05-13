@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 #[allow(dead_code)]
 mod telegram;
-use telegram::{TgBotApi, TgUpdate,
+use telegram::{TgBotApi, TgUpdate, TgResponse,
                TgInlineQuery, TgInlineQueryResult, TgAnswerInlineQuery,
                TgInlineKeyboardMarkup, TgInlineKeyboardButton,
                TgInputMessageContent, TgChosenInlineResult};
@@ -127,10 +127,13 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
             println!("IQ id {}, from user {}, query: {}, took {}",
                      iq_id, user.id, query_str, t0.to(t1));
 
-            tg.send_json("/answerInlineQuery", TgAnswerInlineQuery {
-                inline_query_id: iq_id,
-                results: infos,
-            });
+            let resp: Result<TgResponse<bool>, String> = tg.send_json_recv_json(
+                "/answerInlineQuery",
+                TgAnswerInlineQuery {inline_query_id: iq_id, results: infos});
+
+            if resp.is_err() {
+                println!("error answering IQ: {:#?}", resp);
+            }
         }
         _ => {
             println!("received unsupported update: {:#?}", &upd);

@@ -62,12 +62,22 @@ impl RfApi {
         match self.http_client.get(&url).send(){
             Ok(resp) => match serde_json::from_reader::<hyper::client::Response,
                                                         RfPlaceInfo>(resp) {
-                Ok(pi) => Some(pi),
+                Ok(mut pi) => { normalize_place_info(&mut pi); Some(pi) },
                 Err(_) => None,
             },
             Err(_) => None,
         }
     }
+}
+
+fn normalize_place_info(pi: &mut RfPlaceInfo) {
+    if let Some(ref mut s) = pi.contact_phone {
+        if s.starts_with("380") {
+            *s = format!("+{}", &s);
+        }
+    }
+
+    pi.description = get_place_short_desc(pi, 300);
 }
 
 pub fn get_place_short_desc(place: &RfPlaceInfo, sz: usize) -> String {
@@ -77,14 +87,15 @@ pub fn get_place_short_desc(place: &RfPlaceInfo, sz: usize) -> String {
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!(r#"<b>{}</b><a href="{}">:</a>
-<i>Рейтинг: {} ({} голосів)</i>
+    format!(r#"<b>{}</b><a href="{}">&#160;</a>
+<a href="{}/reports">Рейтинг: {} ({} голосів)</a>
 <i>Телефон: {}</i>
 <i>Доступ: {}</i>
 
 {}"#,
             place.name,
             match place.thumbnail { Some(ref s) => s, None => "" },
+            place.url,
             match place.rating_avg { Some(ref s) => s, None => "--" },
             place.rating_votes.unwrap_or(0),
             match place.contact_phone { Some(ref s) => s, None => "--" },
@@ -93,5 +104,5 @@ pub fn get_place_text(place: &RfPlaceInfo) -> String {
                 Some("free") => "безкоштовно",
                 _ => "невідомо"
             },
-            get_place_short_desc(place, 300))
+            place.description)
 }

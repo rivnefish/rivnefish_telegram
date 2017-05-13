@@ -201,7 +201,7 @@ pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
     }
 }
 
-fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, String>
+pub fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, String>
     where S: serde::ser::Serialize,
           D: serde::de::Deserialize
 {
