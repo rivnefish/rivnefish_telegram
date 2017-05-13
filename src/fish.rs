@@ -18,6 +18,8 @@ pub struct RfPlaceInfo {
     pub rating_avg: Option<String>,
     pub rating_votes: Option<i32>,
     pub thumbnail: Option<String>,
+    pub contact_phone: Option<String>,
+    pub permit: Option<String>,
     pub id: i32,
 }
 
@@ -75,10 +77,21 @@ pub fn get_place_short_desc(place: &RfPlaceInfo, sz: usize) -> String {
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!("<b>{}</b><a href=\"{}\">:</a>\n<i>Рейтинг: {}({} голосів)</i>\n{}",
+    format!(r#"<b>{}</b><a href="{}">:</a>
+<i>Рейтинг: {} ({} голосів)</i>
+<i>Телефон: {}</i>
+<i>Доступ: {}</i>
+
+{}"#,
             place.name,
             match place.thumbnail { Some(ref s) => s, None => "" },
             match place.rating_avg { Some(ref s) => s, None => "--" },
             place.rating_votes.unwrap_or(0),
+            match place.contact_phone { Some(ref s) => s, None => "--" },
+            match place.permit.as_ref().map(|s| s.as_str()) {
+                Some("paid") => "платно",
+                Some("free") => "безкоштовно",
+                _ => "невідомо"
+            },
             get_place_short_desc(place, 300))
 }
