@@ -113,10 +113,9 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                         disable_web_page_preview: false,
                     },
                     reply_markup: Some(TgInlineKeyboardMarkup {
-                        inline_keyboard: vec![vec![TgInlineKeyboardButton {
+                        inline_keyboard: vec![vec![TgInlineKeyboardButton::Url {
                             text: "детальніше".to_owned(),
-                            url: Some(pi.url.clone()),
-                            callback_data: None,
+                            url: pi.url.clone(),
                         }]]
                     }),
                 })

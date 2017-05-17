@@ -127,10 +127,10 @@ impl TgInlineKeyboardMarkup {
 }
 
 #[derive(Serialize)]
-pub struct TgInlineKeyboardButton {
-    pub text: String,
-    pub url: Option<String>,
-    pub callback_data: Option<String>,
+#[serde(untagged)]
+pub enum TgInlineKeyboardButton {
+    Cb{text: String, callback_data: String},
+    Url{text: String, url: String},
 }
 
 #[derive(Serialize)]
