@@ -99,26 +99,28 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                 .map(|i| get_info_for(st, &rfapi, *i))
                 .filter(|ci| ci.is_some())
                 .map(|ci| ci.unwrap())
-                .map(|pi| TgInlineQueryResult {
-                    type_: "article".to_owned(),
-                    id: format!("iqid_{}", pi.id),
-                    title: pi.name.clone(),
-                    description: fish::get_place_short_desc(&pi, 100),
-                    url: pi.url.clone(),
-                    hide_url: true,
-                    thumb_url: pi.thumbnail.clone().unwrap_or("".to_owned()),
-                    input_message_content: TgInputMessageContent {
-                        message_text: fish::get_place_text(&pi),
-                        parse_mode: "HTML".to_owned(),
-                        disable_web_page_preview: false,
-                    },
-                    reply_markup: Some(TgInlineKeyboardMarkup {
-                        inline_keyboard: vec![vec![TgInlineKeyboardButton::Url {
-                            text: "детальніше".to_owned(),
-                            url: pi.url.clone(),
-                        }]]
-                    }),
-                })
+                .map(|pi| {
+                    let txt = fish::get_place_text(&pi);
+                    TgInlineQueryResult {
+                        type_: "article".to_owned(),
+                        id: format!("iqid_{}", pi.id),
+                        title: pi.name,
+                        description: pi.desc_short,
+                        url: pi.url.clone(),
+                        hide_url: true,
+                        thumb_url: pi.thumbnail,
+                        input_message_content: TgInputMessageContent {
+                            message_text: txt,
+                            parse_mode: "HTML".to_owned(),
+                            disable_web_page_preview: false,
+                        },
+                        reply_markup: Some(TgInlineKeyboardMarkup {
+                            inline_keyboard: vec![vec![TgInlineKeyboardButton::Url {
+                                text: "детальніше на вебсайті".to_owned(),
+                                url: pi.url,
+                            }]]
+                        }),
+                    }})
                 .collect::<Vec<_>>();
 
             let t1 = PreciseTime::now();

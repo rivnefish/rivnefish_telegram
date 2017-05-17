@@ -115,7 +115,7 @@ pub struct TgAnswerCBQ {
     callback_query_id: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct TgInlineKeyboardMarkup {
     pub inline_keyboard: Vec<Vec<TgInlineKeyboardButton>>,
 }
@@ -126,7 +126,7 @@ impl TgInlineKeyboardMarkup {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(untagged)]
 pub enum TgInlineKeyboardButton {
     Cb{text: String, callback_data: String},
@@ -139,7 +139,7 @@ pub struct TgAnswerInlineQuery {
     pub results: Vec<TgInlineQueryResult>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct TgInlineQueryResult {
     #[serde(rename = "type")]
     pub type_: String,
@@ -153,7 +153,7 @@ pub struct TgInlineQueryResult {
     pub input_message_content: TgInputMessageContent,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct TgInputMessageContent {
     pub message_text: String,
     pub parse_mode: String,
