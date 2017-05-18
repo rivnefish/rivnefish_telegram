@@ -125,10 +125,12 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             .and_then(|s| time::strptime(&s, "%FT%T.%f%z").ok())
             .and_then(|tm| time::strftime("%F", &tm).ok()),
         contact_str: match (pi.contact_phone, pi.contact_name) {
-            (Some(p), Some(n)) => Some(format!("{}{} {}",
-                                               if p.starts_with("380")
-                                               {"+"} else {""},
-                                               p, n)),
+            (Some(ref p), _) if p.len() == 0 => None,
+            (Some(p), Some(n)) =>
+                Some(format!("{}{} {}",
+                             if p.starts_with("380")
+                             {"+"} else {""},
+                             p, n)),
             (Some(p), None) => Some(p),
             _ => None,
         },
@@ -152,7 +154,7 @@ pub fn get_place_text(place: &RfPlaceInfo) -> String {
 {a}{h}{d}
 {c}
 &#x1F4B2; {p}
-<i>{i}</i>"#,
+{i}"#,
             n = place.name, t = place.thumbnail,
             r = place.rating_str, u = place.url, v = place.votes,
             a = match place.area_str {
