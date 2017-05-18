@@ -23,6 +23,7 @@ pub struct RfPlaceInfoRaw {
     pub permit: Option<String>, // "free", "paid"
     pub area: Option<String>,
     pub time_to_fish: Option<String>, // "full_day", "day_only"
+    pub price_notes: Option<String>,
     pub id: i32,
 }
 
@@ -99,11 +100,14 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
     RfPlaceInfo {
         name: pi.name,
         thumbnail: pi.thumbnail.unwrap_or("".to_owned()),
-        payment_str: match pi.permit.as_ref().map(|s| s.as_str()) {
-            Some("paid") => "Платно",
-            Some("free") => "Безкоштовно",
-            _ => ""
-        }.to_owned(),
+        payment_str: match (pi.permit.as_ref().map(|s| s.as_str()),
+                            pi.price_notes) {
+            (Some("paid"), Some(n)) => format!("{}: {}", "Платно", n),
+            (Some("paid"), None) => "Платно".to_owned(),
+            (Some("free"), Some(n)) => format!("{}: {}", "Безкоштовно", n),
+            (Some("free"), None) => "Безкоштовно".to_owned(),
+            _ => "".to_owned(),
+        },
         rating_str: pi.rating_avg.unwrap_or("--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
         area_str: match pi.area {
@@ -139,7 +143,7 @@ pub fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
     format!(r#"<b>{}</b><a href="{}">&#160;</a>
-{}
+<i>{}</i>
 &#x2B50;{} <a href="{}/reports">(звітів: {})</a>
 {}{}
 {}
