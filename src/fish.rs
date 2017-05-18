@@ -1,6 +1,7 @@
 extern crate hyper;
 extern crate hyper_native_tls;
 extern crate serde_json;
+extern crate time;
 
 const RIVNEFISHURL: &'static str = "https://rivnefish.com/api/v1/places";
 
@@ -14,16 +15,17 @@ pub struct RfPlace {
 pub struct RfPlaceInfoRaw {
     pub name: String,
     pub url: String,
-    pub description: String,
+    pub address: Option<String>,
     pub rating_avg: Option<String>,
     pub rating_votes: Option<i32>,
     pub contact_name: Option<String>,
     pub contact_phone: Option<String>,
     pub thumbnail: Option<String>,
-    pub permit: Option<String>, // "free", "paid"
+    pub permit: Option<String>, // "free", "paid", "prohibited"
     pub area: Option<String>,
     pub time_to_fish: Option<String>, // "full_day", "day_only"
     pub price_notes: Option<String>,
+    pub info_updated_at: Option<String>,
     pub id: i32,
 }
 
@@ -32,12 +34,13 @@ pub struct RfPlaceInfo {
     pub name: String,
     pub thumbnail: String,
     pub payment_str: String,
+    pub payment_info: String,
     pub rating_str: String,
     pub votes: i32,
     pub area_str: Option<String>,
     pub hours_str: Option<String>,
+    pub update_str: Option<String>,
     pub contact_str: Option<String>,
-    pub desc: String,
     pub desc_short: String,
     pub url: String,
     pub id: i32,
@@ -100,14 +103,13 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
     RfPlaceInfo {
         name: pi.name,
         thumbnail: pi.thumbnail.unwrap_or("".to_owned()),
-        payment_str: match (pi.permit.as_ref().map(|s| s.as_str()),
-                            pi.price_notes) {
-            (Some("paid"), Some(n)) => format!("{}: {}", "Платно", n),
-            (Some("paid"), None) => "Платно".to_owned(),
-            (Some("free"), Some(n)) => format!("{}: {}", "Безкоштовно", n),
-            (Some("free"), None) => "Безкоштовно".to_owned(),
-            _ => "".to_owned(),
-        },
+        payment_str: match pi.permit.as_ref().map(|s| s.as_str()) {
+            Some("paid") => "Платно",
+            Some("free") => "Безкоштовно",
+            Some("prohibited") => "Риболовля заборонена",
+            _ => "Умови невідомі",
+        }.to_owned(),
+        payment_info: pi.price_notes.unwrap_or("".to_owned()),
         rating_str: pi.rating_avg.unwrap_or("--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
         area_str: match pi.area {
@@ -119,6 +121,9 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             Some("day_only") => Some("вдень".to_owned()),
             _ => None
         },
+        update_str: pi.info_updated_at
+            .and_then(|s| time::strptime(&s, "%FT%T.%f%z").ok())
+            .and_then(|tm| time::strftime("%F", &tm).ok()),
         contact_str: match (pi.contact_phone, pi.contact_name) {
             (Some(p), Some(n)) => Some(format!("{}{} {}",
                                                if p.starts_with("380")
@@ -127,42 +132,44 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             (Some(p), None) => Some(p),
             _ => None,
         },
-        desc: get_place_short_desc(&pi.description, 300),
-        desc_short: get_place_short_desc(&pi.description, 100),
+        desc_short: pi.address.unwrap_or("".to_owned()),
         url: pi.url,
         id: pi.id,
     }
-    
 }
 
-pub fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
+#[allow(dead_code)]
+fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
     let end = long_desc.char_indices().map(|(p, _)| p).nth(sz);
     let short_desc = &long_desc[..end.unwrap_or(long_desc.len())];
     format!("{}{}", short_desc, end.map_or("", |_| "..."))
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!(r#"<b>{}</b><a href="{}">&#160;</a>
-<i>{}</i>
-&#x2B50;{} <a href="{}/reports">(звітів: {})</a>
-{}{}
-{}
+    format!(r#"<b>{n}</b><a href="{t}">&#160;</a>
+&#x2B50; {r} <a href="{u}/reports">(звітів: {v})</a>
 
-{}"#,
-            place.name, place.thumbnail,
-            place.payment_str,
-            place.rating_str, place.url, place.votes,
-            match place.area_str {
-                Some(ref s) => format!("&#x25FB;{} ", s),
+{a}{h}{d}
+{c}
+&#x1F4B2; {p}
+<i>{i}</i>"#,
+            n = place.name, t = place.thumbnail,
+            r = place.rating_str, u = place.url, v = place.votes,
+            a = match place.area_str {
+                Some(ref s) => format!("&#x25FB; {} ", s),
                 None => "".to_owned(),
             },
-            match place.hours_str {
-                Some(ref s) => format!("&#x23F0;{}", s),
+            h = match place.hours_str {
+                Some(ref s) => format!("&#x23F0; {} ", s),
                 None => "".to_owned(),
             },
-            match place.contact_str {
-                Some(ref s) => format!("&#x1F4DE;{}", s),
+            d = match place.update_str {
+                Some(ref s) => format!("&#x1F504; {}", s),
                 None => "".to_owned(),
             },
-            place.desc)
+            c = match place.contact_str {
+                Some(ref s) => format!("&#x1F4DE; {}\n", s),
+                None => "".to_owned(),
+            },
+            p = place.payment_str, i = place.payment_info)
 }
