@@ -15,6 +15,7 @@ pub struct RfPlace {
 pub struct RfPlaceInfoRaw {
     pub name: String,
     pub url: String,
+    pub notes: Option<String>,
     pub address: Option<String>,
     pub rating_avg: Option<String>,
     pub rating_votes: Option<i32>,
@@ -37,6 +38,7 @@ pub struct RfPlaceInfo {
     pub payment_info: String,
     pub rating_str: String,
     pub votes: i32,
+    pub important: Option<String>,
     pub area_str: Option<String>,
     pub hours_str: Option<String>,
     pub update_str: Option<String>,
@@ -112,6 +114,11 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
         payment_info: pi.price_notes.unwrap_or("".to_owned()),
         rating_str: pi.rating_avg.unwrap_or("--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
+        important: match pi.notes {
+            Some(ref p) if p.len() == 0 => None,
+            Some(p) => Some(p),
+            _ => None,
+        },
         area_str: match pi.area {
             Some(ref s) => Some(format!("{}Га", s)),
             None => None,
@@ -150,13 +157,17 @@ fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
     format!(r#"<b>{n}</b><a href="{t}">&#160;</a>
 &#x2B50; {r} <a href="{u}/reports">(звітів: {v})</a>
-
+{w}
 {a}{h}{d}
 {c}
 &#x1F4B2; {p}
 {i}"#,
             n = place.name, t = place.thumbnail,
             r = place.rating_str, u = place.url, v = place.votes,
+            w = match place.important {
+                Some(ref s) => format!("&#x26A0; {}\n", s),
+                None => "".to_owned(),
+            },
             a = match place.area_str {
                 Some(ref s) => format!("&#x25FB; {} ", s),
                 None => "".to_owned(),
