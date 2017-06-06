@@ -17,7 +17,7 @@ Binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegram/r
 
 1. Set webhook:
   ```
-  POST https://api.telegram.org/bot:<bottoken>/setWebhook
+  POST https://api.telegram.org/bot<bottoken>/setWebhook
   Content-Type: application/json
 
   {"url": "https://<host>/<webhookpath>"}
