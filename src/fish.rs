@@ -67,15 +67,18 @@ impl RfApi {
             Ok(resp) => {
                 match serde_json::from_reader::<hyper::client::Response,
                                                 Vec<RfPlace>>(resp) {
-                    Ok(ps) => ps,
+                    Ok(ps) => {
+                        info!("fetched {} places", ps.len());
+                        ps
+                    },
                     Err(e) => {
-                        println!("error parsing rivnefish places: {}", &e);
+                        error!("error parsing rivnefish places: {}", &e);
                         Vec::new()
                     }
                 }
             },
             Err(e) => {
-                println!("error reading rivnefish response: {}", &e);
+                error!("error reading rivnefish response: {}", &e);
                 Vec::new()
             }
         }
@@ -89,12 +92,12 @@ impl RfApi {
                                                         RfPlaceInfoRaw>(resp) {
                 Ok(pi) => Some(normalize_place_info(pi)),
                 Err(err) => {
-                    println!("error parsing rivnefish place {}", err);
+                    error!("error parsing rivnefish place {}", err);
                     None
                 },
             },
             Err(err) => {
-                println!("error fetching rivnefish place {}", err);
+                error!("error fetching rivnefish place {}", err);
                 None
             }
         }

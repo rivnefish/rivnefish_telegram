@@ -4,6 +4,10 @@ extern crate router;
 extern crate time;
 
 #[macro_use]
+extern crate log;
+extern crate env_logger;
+
+#[macro_use]
 extern crate serde_derive;
 
 use iron::prelude::*;
@@ -64,7 +68,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
             }),
             ..
         } => {
-            println!("CIR: resuldid: {}, inline msg id: {}", result_id, imi);
+            info!("CIR: resuldid: {}, inline msg id: {}", result_id, imi);
         },
         TgUpdate {
             message: None,
@@ -125,20 +129,20 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
 
             let t1 = PreciseTime::now();
 
-            println!("IQ id {}, from user {}, query: {}, took {}",
-                     iq_id, user.id, query_str, t0.to(t1));
+            info!("IQ id {}, from user '{}' ({}), query: `{}`, took {}",
+                     iq_id, telegram::make_name(&user), user.id, query_str, t0.to(t1));
 
             let resp: Result<TgResponse<bool>, String> = tg.send_json_recv_json(
                 "/answerInlineQuery",
                 TgAnswerInlineQuery {inline_query_id: iq_id, results: infos});
 
             if resp.is_err() {
-                println!("error answering IQ: {:#?}", resp);
+                error!("error answering IQ: {:#?}", resp);
             }
         }
         _ => {
-            println!("received unsupported update: {:#?}", &upd);
-            println!("original text: {}", &updstr);
+            warn!("received unsupported update: {:#?}", &upd);
+            debug!("original text: {}", &updstr);
         }
     }
 }
@@ -165,6 +169,7 @@ fn reload_places(req: &mut Request) -> IronResult<Response> {
 
             let cache = &mut bs.cache;
             cache.clear();
+            info!("reloaded place list and invalidated cache");
         }
     }
 
@@ -178,6 +183,25 @@ struct Config {
 }
 
 fn main() {
+    let format_fn = |record: &log::LogRecord| {
+        let t = time::now();
+        format!("{} {} [{}] {}",
+                time::strftime("%Y-%m-%d %H:%M:%S", &t).unwrap(),
+                record.level(),
+                record.location().module_path(),
+                record.args())
+    };
+
+    let mut log_builder = env_logger::LogBuilder::new();
+    log_builder.format(format_fn).filter(None, log::LogLevelFilter::Info);
+
+    if let Ok(ref lcfg) = std::env::var("RUST_LOG") {
+        log_builder.parse(lcfg);
+    }
+
+    if let Err(e) = log_builder.init() {
+        panic!("unable to start {}", e);
+    }
 
     let mut router = router::Router::new();
 
@@ -191,7 +215,7 @@ fn main() {
             Ok((upd, updstr)) => if let Ok(arc_st) = req.get::<State<BotState>>() {
                 process_update(&arc_st, upd, updstr, cfg);
             },
-            Err(err) => println!("read_update error: {}", err),
+            Err(err) => error!("read_update error: {}", err),
         }
 
         Ok(Response::with(iron::status::Ok))
@@ -220,6 +244,6 @@ fn main() {
 
     match Iron::new(chain).http(listenaddr) {
         Ok(_) => {}
-        Err(e) => println!("iron http failure {}", e.to_string())
+        Err(e) => error!("iron http failure {}", e.to_string())
     }
 }

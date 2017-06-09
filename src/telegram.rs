@@ -197,7 +197,10 @@ pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
     if let Ok(bod) = serde_json::to_string(&obj) {
         let mut hs = hyper::header::Headers::new();
         hs.set(hyper::header::ContentType::json());
-        self.http_client.post(&url).headers(hs).body(&bod).send().unwrap();
+        if let Err(e) = self.http_client
+            .post(&url).headers(hs).body(&bod).send() {
+                error!("error sending json: {}", e);
+            }
     }
 }
 
