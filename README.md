@@ -1,7 +1,7 @@
-# rivnefish_telegram [![Build Status](https://travis-ci.org/rivnefish/rivnefish_telegram.svg?branch=master)](https://travis-ci.org/rivnefish/rivnefish_telegram)
+# rivnefish_telegram [![Build Status](https://travis-ci.org/rivnefish/rivnefish_telegram.svg?branch=master)](https://travis-ci.org/rivnefish/rivnefish_telegram) [![Download](https://api.bintray.com/packages/chyvonomys/rivnefish_telegram/rvfish_bot/images/download.svg) ](https://bintray.com/chyvonomys/rivnefish_telegram/rvfish_bot/_latestVersion)
 Telegram bot for quick lookup of fishing places, inspired by @imdb
 
-Binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegram/rvfish_bot)
+All binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegram/rvfish_bot)
 
 ## How to build
 
@@ -37,4 +37,11 @@ Binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegram/r
   ```
   GET http://localhost:<port>/reload_places
   ```
-5. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
+5. Set up list of places to be shown upon empty inline query:
+```
+POST http://localhost:<port>/set_top
+Content-Type: application/json
+
+{"ids": [20, 21, 800]}
+```
+6. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
