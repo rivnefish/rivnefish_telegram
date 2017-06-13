@@ -1,4 +1,5 @@
 extern crate iron;
+extern crate bodyparser;
 extern crate persistent;
 extern crate router;
 extern crate time;
@@ -13,7 +14,7 @@ extern crate serde_derive;
 use iron::prelude::*;
 use iron::typemap::Key;
 
-use persistent::State;
+use persistent::{State, Read};
 
 use time::PreciseTime;
 
@@ -90,9 +91,13 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
 
                     let query_upper = query_str.to_uppercase();
 
-                    places.iter()
-                        .filter(|p| p.name.to_uppercase().contains(&query_upper))
-                        .map(|p| p.id).take(10).collect()
+                    if query_upper.len() == 0 {
+                        state.top_ids.clone()
+                    } else {
+                        places.iter()
+                            .filter(|p| p.name.to_uppercase().contains(&query_upper))
+                            .map(|p| p.id).take(10).collect()
+                    }
                 },
                 Err(_) => Vec::new()
             };
@@ -150,27 +155,50 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
 struct BotState {
     places: Vec<RfPlace>,
     cache: HashMap<i32, Option<RfPlaceInfo>>,
+    top_ids: Vec<i32>,
 }
 
 impl Key for BotState {
     type Value = BotState;
 }
 
-fn reload_places(req: &mut Request) -> IronResult<Response> {
-    let rfapi = fish::RfApi::new();
-    let new_places = rfapi.fetch_all_places();
-
+fn modify_bot_state<F>(req: &mut Request, f: F) where F: FnOnce(&mut BotState) {
     if let Ok(arc_st) = req.get::<State<BotState>>() {
         if let Ok(mut guard) = arc_st.write() {
             let bs = &mut *guard;
 
-            let places = &mut bs.places;
-            *places = new_places;
-
-            let cache = &mut bs.cache;
-            cache.clear();
-            info!("reloaded place list and invalidated cache");
+            f(bs);
         }
+    }
+}
+
+fn reload_places(req: &mut Request) -> IronResult<Response> {
+    let rfapi = fish::RfApi::new();
+    let new_places = rfapi.fetch_all_places();
+
+    modify_bot_state(req, |bs: &mut BotState| {
+        bs.places = new_places;
+        bs.cache.clear();
+        info!("reloaded place list and invalidated cache");
+    });
+
+    Ok(Response::with(iron::status::Ok))
+}
+
+#[derive(Deserialize, Clone)]
+struct TopIds {
+    ids: Vec<i32>,
+}
+
+fn set_top(req: &mut Request) -> IronResult<Response> {
+
+    match req.get::<bodyparser::Struct<TopIds>>() {
+        Ok(Some(s)) => modify_bot_state(req, |bs: &mut BotState| {
+            bs.top_ids = s.ids.clone();
+            info!("updated top fishing places with {} items", bs.top_ids.len());
+        }),
+        Ok(None) => info!("/set_top request has empty body"),
+        Err(err) => error!("/set_top: {:?}", err),
     }
 
     Ok(Response::with(iron::status::Ok))
@@ -227,17 +255,21 @@ fn main() {
         .unwrap_or(String::from("/bot"));
 
     let reload_handler = |req: &mut Request| reload_places(req);
+    let set_top_handler = |req: &mut Request| set_top(req);
 
     router.post(listenpath, bot_handler, "bot");
     router.get("/reload_places", reload_handler, "reload");
+    router.post("/set_top", set_top_handler, "set_top");
 
     let botstate = BotState {
         places: Vec::new(),
         cache: HashMap::new(),
+        top_ids: Vec::new(),
     };
 
     let mut chain = Chain::new(router);
     chain.link(State::<BotState>::both(botstate));
+    chain.link_before(Read::<bodyparser::MaxBodyLength>::one(1024 * 1024));
 
     let listenaddr: &str = &std::env::var("RVFISH_LISTENADDR")
         .unwrap_or(String::from("localhost:2358"));

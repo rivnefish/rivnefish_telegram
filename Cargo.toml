@@ -6,6 +6,7 @@ authors = ["Andriy Chyvonomys <sima.rv@gmail.com>"]
 [dependencies]
 iron = "*"
 persistent = "*"
+bodyparser = "*"
 router = "*"
 hyper = "*"
 hyper-native-tls = "*"

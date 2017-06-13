@@ -2,6 +2,7 @@
 name = "rvfish_bot"
 version = "0.4.0"
 dependencies = [
+ "bodyparser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.10.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper-native-tls 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -49,6 +50,18 @@ dependencies = [
 name = "bitflags"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "bodyparser"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "iron 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "persistent 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "byteorder"
@@ -619,6 +632,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum antidote 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "34fde25430d87a9388dadbe6e34d7f72a462c8b43ac8d309b42b0a8505d7e2a5"
 "checksum base64 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "30e93c03064e7590d0466209155251b90c22e37fab1daf2771582598b5827557"
 "checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
+"checksum bodyparser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f82c118499b1f91bfe399833d9b6d320ec8775a98cf9ad77af8cc6308b10060c"
 "checksum byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c40977b0ee6b9885c9013cd41d9feffdd22deb3bb4dc3a71d901cc7a77de18c8"
 "checksum conduit-mime-types 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "95ca30253581af809925ef68c2641cc140d6183f43e12e0af4992d53768bd7b8"
 "checksum core-foundation 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "25bfd746d203017f7d5cbd31ee5d8e17f94b6521c7af77ece6c9e4b2d4b16c67"
