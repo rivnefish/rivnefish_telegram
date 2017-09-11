@@ -1,6 +1,6 @@
 [root]
 name = "rvfish_bot"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "bodyparser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
