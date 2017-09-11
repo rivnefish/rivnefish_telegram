@@ -1,4 +1,3 @@
-
 extern crate bodyparser;
 extern crate iron;
 extern crate persistent;
@@ -260,8 +259,8 @@ fn main() {
     let mut router = router::Router::new();
 
     let config = Config {
-        botname: std::env::var("RVFISH_BOTNAME").unwrap_or(String::from("@")),
-        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or(String::from("")),
+        botname: std::env::var("RVFISH_BOTNAME").unwrap_or_else(|_| "@".to_owned()),
+        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or_else(|_| "".to_owned()),
     };
 
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
@@ -277,7 +276,8 @@ fn main() {
 
     let bot_handler = move |req: &mut Request| bot(req, &config);
 
-    let listenpath: &str = &std::env::var("RVFISH_LISTENPATH").unwrap_or(String::from("/bot"));
+    let listenpath: &str =
+        &std::env::var("RVFISH_LISTENPATH").unwrap_or_else(|_| "/bot".to_owned());
 
     let reload_handler = |req: &mut Request| reload_places(req);
     let set_top_handler = |req: &mut Request| set_top(req);
@@ -297,7 +297,7 @@ fn main() {
     chain.link_before(Read::<bodyparser::MaxBodyLength>::one(1024 * 1024));
 
     let listenaddr: &str =
-        &std::env::var("RVFISH_LISTENADDR").unwrap_or(String::from("localhost:2358"));
+        &std::env::var("RVFISH_LISTENADDR").unwrap_or_else(|_| "localhost:2358".to_owned());
 
     match Iron::new(chain).http(listenaddr) {
         Ok(_) => {}

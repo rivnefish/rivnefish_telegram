@@ -101,16 +101,16 @@ impl RfApi {
 fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
     RfPlaceInfo {
         name: pi.name,
-        thumbnail: pi.thumbnail.unwrap_or("".to_owned()),
-        featured_image: pi.featured_image.unwrap_or("".to_owned()),
+        thumbnail: pi.thumbnail.unwrap_or_else(|| "".to_owned()),
+        featured_image: pi.featured_image.unwrap_or_else(|| "".to_owned()),
         payment_str: match pi.permit.as_ref().map(|s| s.as_str()) {
             Some("paid") => "Платно",
             Some("free") => "Безкоштовно",
             Some("prohibited") => "Риболовля заборонена",
             _ => "Умови невідомі",
         }.to_owned(),
-        payment_info: pi.price_notes.unwrap_or("".to_owned()),
-        rating_str: pi.rating_avg.unwrap_or("--".to_owned()),
+        payment_info: pi.price_notes.unwrap_or_else(|| "".to_owned()),
+        rating_str: pi.rating_avg.unwrap_or_else(|| "--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
         important: match pi.notes {
             Some(ref p) if p.is_empty() => None,
@@ -140,7 +140,7 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             (Some(p), None) => Some(p),
             _ => None,
         },
-        desc_short: pi.address.unwrap_or("".to_owned()),
+        desc_short: pi.address.unwrap_or_else(|| "".to_owned()),
         url: pi.url,
         id: pi.id,
     }
@@ -149,7 +149,7 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
 #[allow(dead_code)]
 fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
     let end = long_desc.char_indices().map(|(p, _)| p).nth(sz);
-    let short_desc = &long_desc[..end.unwrap_or(long_desc.len())];
+    let short_desc = &long_desc[..end.unwrap_or_else(|| long_desc.len())];
     format!("{}{}", short_desc, end.map_or("", |_| "..."))
 }
 
