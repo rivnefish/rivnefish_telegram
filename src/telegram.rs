@@ -1,8 +1,6 @@
 extern crate serde;
 extern crate serde_json;
-
-extern crate hyper;
-extern crate hyper_native_tls;
+extern crate reqwest;
 
 use std::io::Read;
 use std::fmt::Write;
@@ -173,18 +171,15 @@ const BASEURL: &'static str = "https://api.telegram.org";
 
 pub struct TgBotApi<'a> {
     api_token: &'a str,
-    http_client: hyper::Client,
+    http_client: reqwest::Client,
 }
 
 impl<'a> TgBotApi<'a> {
 
 pub fn new(token: &str) -> TgBotApi {
-    let ssl = hyper_native_tls::NativeTlsClient::new().unwrap();
-    let connector = hyper::net::HttpsConnector::new(ssl);
-    let client = hyper::Client::with_connector(connector);
     TgBotApi {
         api_token: token,
-        http_client: client,
+        http_client: reqwest::Client::new().unwrap(),
     }
 }
 
@@ -195,10 +190,10 @@ pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
     url.push_str(self.api_token);
     url.push_str(method);
     if let Ok(bod) = serde_json::to_string(&obj) {
-        let mut hs = hyper::header::Headers::new();
-        hs.set(hyper::header::ContentType::json());
+        let mut hs = reqwest::header::Headers::new();
+        hs.set(reqwest::header::ContentType::json());
         if let Err(e) = self.http_client
-            .post(&url).headers(hs).body(&bod).send() {
+            .post(&url).unwrap().headers(hs).body(bod).send() {
                 error!("error sending json: {}", e);
             }
     }
@@ -216,9 +211,9 @@ pub fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, Strin
             url.push_str(self.api_token);
             url.push_str(method);
 
-            let mut hs = hyper::header::Headers::new();
-            hs.set(hyper::header::ContentType::json());
-            match self.http_client.post(&url).headers(hs).body(&bod).send() {
+            let mut hs = reqwest::header::Headers::new();
+            hs.set(reqwest::header::ContentType::json());
+            match self.http_client.post(&url).unwrap().headers(hs).body(bod).send() {
                 Ok(resp) => {
                     match serde_json::from_reader(resp) {
                         Ok(d) => Ok(d),

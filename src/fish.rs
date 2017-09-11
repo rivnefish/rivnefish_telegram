@@ -1,5 +1,4 @@
-extern crate hyper;
-extern crate hyper_native_tls;
+extern crate reqwest;
 extern crate serde_json;
 extern crate time;
 
@@ -51,23 +50,20 @@ pub struct RfPlaceInfo {
 }
 
 pub struct RfApi {
-    http_client: hyper::Client,
+    http_client: reqwest::Client,
 }
 
 impl RfApi {
     pub fn new() -> RfApi {
-        let ssl = hyper_native_tls::NativeTlsClient::new().unwrap();
-        let connector = hyper::net::HttpsConnector::new(ssl);
-        let client = hyper::Client::with_connector(connector);
         RfApi {
-            http_client: client,
+            http_client: reqwest::Client::new().unwrap(),
         }
     }
 
     pub fn fetch_all_places(&self) -> Vec<RfPlace> {
-        match self.http_client.get(RIVNEFISHURL).send() {
+        match self.http_client.get(RIVNEFISHURL).unwrap().send() {
             Ok(resp) => {
-                match serde_json::from_reader::<hyper::client::Response,
+                match serde_json::from_reader::<reqwest::Response,
                                                 Vec<RfPlace>>(resp) {
                     Ok(ps) => {
                         info!("fetched {} places", ps.len());
@@ -89,8 +85,8 @@ impl RfApi {
     pub fn fetch_place_info(&self, placeid: i32) -> Option<RfPlaceInfo> {
         let url = format!("{}/{}", RIVNEFISHURL, placeid);
 
-        match self.http_client.get(&url).send(){
-            Ok(resp) => match serde_json::from_reader::<hyper::client::Response,
+        match self.http_client.get(&url).unwrap().send(){
+            Ok(resp) => match serde_json::from_reader::<reqwest::Response,
                                                         RfPlaceInfoRaw>(resp) {
                 Ok(pi) => Some(normalize_place_info(pi)),
                 Err(err) => {
