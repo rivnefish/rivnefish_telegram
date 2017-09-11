@@ -1,6 +1,7 @@
+
+extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
-extern crate reqwest;
 
 use std::io::Read;
 use std::fmt::Write;
@@ -8,8 +9,7 @@ use std::fmt::Write;
 #[derive(Deserialize, Debug)]
 pub struct TgChat {
     pub id: i64,
-    #[serde(rename = "type")]
-    type_: String,
+    #[serde(rename = "type")] type_: String,
 }
 
 impl TgChat {
@@ -36,8 +36,7 @@ pub struct TgUser {
 
 #[derive(Deserialize, Debug)]
 pub struct TgMessageEntity {
-    #[serde(rename = "type")]
-    type_: String,
+    #[serde(rename = "type")] type_: String,
     pub offset: usize,
     pub length: usize,
 }
@@ -94,18 +93,15 @@ pub struct TgCallbackQuery {
 pub struct TgSendMsg {
     chat_id: i64,
     text: String,
-    #[serde(skip_serializing_if="Option::is_none")]
-    reply_to_message_id: Option<u64>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    reply_markup: Option<TgInlineKeyboardMarkup>,
+    #[serde(skip_serializing_if = "Option::is_none")] reply_to_message_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
 
 #[derive(Serialize)]
 pub struct TgEditMsgReplyMarkup {
     chat_id: i64,
     message_id: u64,
-    #[serde(skip_serializing_if="Option::is_none")]
-    reply_markup: Option<TgInlineKeyboardMarkup>,
+    #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
 
 #[derive(Serialize)]
@@ -120,15 +116,17 @@ pub struct TgInlineKeyboardMarkup {
 
 impl TgInlineKeyboardMarkup {
     pub fn new() -> TgInlineKeyboardMarkup {
-        TgInlineKeyboardMarkup{inline_keyboard: vec![vec![]]}
+        TgInlineKeyboardMarkup {
+            inline_keyboard: vec![vec![]],
+        }
     }
 }
 
 #[derive(Serialize, Debug)]
 #[serde(untagged)]
 pub enum TgInlineKeyboardButton {
-    Cb{text: String, callback_data: String},
-    Url{text: String, url: String},
+    Cb { text: String, callback_data: String },
+    Url { text: String, url: String },
 }
 
 #[derive(Serialize)]
@@ -139,8 +137,7 @@ pub struct TgAnswerInlineQuery {
 
 #[derive(Serialize, Debug)]
 pub struct TgInlineQueryResult {
-    #[serde(rename = "type")]
-    pub type_: String,
+    #[serde(rename = "type")] pub type_: String,
     pub id: String,
     pub title: String,
     pub description: String,
@@ -175,128 +172,160 @@ pub struct TgBotApi<'a> {
 }
 
 impl<'a> TgBotApi<'a> {
-
-pub fn new(token: &str) -> TgBotApi {
-    TgBotApi {
-        api_token: token,
-        http_client: reqwest::Client::new().unwrap(),
+    pub fn new(token: &str) -> TgBotApi {
+        TgBotApi {
+            api_token: token,
+            http_client: reqwest::Client::new().unwrap(),
+        }
     }
-}
 
-pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
-    let mut url = String::new();
-    url.push_str(BASEURL);
-    url.push_str("/bot");
-    url.push_str(self.api_token);
-    url.push_str(method);
-    if let Ok(bod) = serde_json::to_string(&obj) {
-        let mut hs = reqwest::header::Headers::new();
-        hs.set(reqwest::header::ContentType::json());
-        if let Err(e) = self.http_client
-            .post(&url).unwrap().headers(hs).body(bod).send() {
-                error!("error sending json: {}", e);
-            }
-    }
-}
-
-pub fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, String>
-    where S: serde::ser::Serialize,
-          D: serde::de::DeserializeOwned
-{
-    match serde_json::to_string(&obj) {
-        Ok(bod) => {
-            let mut url = String::new();
-            url.push_str(BASEURL);
-            url.push_str("/bot");
-            url.push_str(self.api_token);
-            url.push_str(method);
-
+    pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
+        let mut url = String::new();
+        url.push_str(BASEURL);
+        url.push_str("/bot");
+        url.push_str(self.api_token);
+        url.push_str(method);
+        if let Ok(bod) = serde_json::to_string(&obj) {
             let mut hs = reqwest::header::Headers::new();
             hs.set(reqwest::header::ContentType::json());
-            match self.http_client.post(&url).unwrap().headers(hs).body(bod).send() {
-                Ok(resp) => {
-                    match serde_json::from_reader(resp) {
-                        Ok(d) => Ok(d),
-                        Err(e) => Err(e.to_string()),
-                    }
-                }
-                Err(e) => Err(e.to_string()),
+            if let Err(e) = self.http_client
+                .post(&url)
+                .unwrap()
+                .headers(hs)
+                .body(bod)
+                .send()
+            {
+                error!("error sending json: {}", e);
             }
         }
-        Err(e) => Err(e.to_string()),
     }
-}
 
-pub fn answer_cbq(&self, id: String) {
-    self.send_json("/answerCallbackQuery",
-                 TgAnswerCBQ { callback_query_id: id });
-}
+    pub fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, String>
+    where
+        S: serde::ser::Serialize,
+        D: serde::de::DeserializeOwned,
+    {
+        match serde_json::to_string(&obj) {
+            Ok(bod) => {
+                let mut url = String::new();
+                url.push_str(BASEURL);
+                url.push_str("/bot");
+                url.push_str(self.api_token);
+                url.push_str(method);
 
-pub fn send_text(&self, text: String, chatid: i64) {
-    self.send_json("/sendMessage",
-        TgSendMsg {
-            chat_id: chatid,
-            text: text,
-            reply_to_message_id: None,
-            reply_markup: None,
-        });
-}
+                let mut hs = reqwest::header::Headers::new();
+                hs.set(reqwest::header::ContentType::json());
+                match self.http_client
+                    .post(&url)
+                    .unwrap()
+                    .headers(hs)
+                    .body(bod)
+                    .send()
+                {
+                    Ok(resp) => match serde_json::from_reader(resp) {
+                        Ok(d) => Ok(d),
+                        Err(e) => Err(e.to_string()),
+                    },
+                    Err(e) => Err(e.to_string()),
+                }
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
 
-pub fn send_reply(&self, text: String, mid: u64, chatid: i64) {
-    self.send_json("/sendMessage",
-        TgSendMsg {
-            chat_id: chatid,
-            text: text,
-            reply_to_message_id: Some(mid),
-            reply_markup: None,
-        })
-}
+    pub fn answer_cbq(&self, id: String) {
+        self.send_json(
+            "/answerCallbackQuery",
+            TgAnswerCBQ {
+                callback_query_id: id,
+            },
+        );
+    }
 
-pub fn send_kb(&self,
-               text: String,
-               kb: TgInlineKeyboardMarkup,
-               chatid: i64) -> Result<TgResponse<TgMessageLite>, String> {
-    self.send_json_recv_json("/sendMessage",
-        TgSendMsg {
-            chat_id: chatid,
-            text: text,
-            reply_to_message_id: None,
-            reply_markup: Some(kb),
-        })
-}
+    pub fn send_text(&self, text: String, chatid: i64) {
+        self.send_json(
+            "/sendMessage",
+            TgSendMsg {
+                chat_id: chatid,
+                text: text,
+                reply_to_message_id: None,
+                reply_markup: None,
+            },
+        );
+    }
 
-pub fn update_kb(&self, msgid: u64, chatid: i64, kb: TgInlineKeyboardMarkup) {
-    self.send_json("/editMessageReplyMarkup",
-        TgEditMsgReplyMarkup {
-            chat_id: chatid,
-            message_id: msgid,
-            reply_markup: Some(kb),
-        });
-}
+    pub fn send_reply(&self, text: String, mid: u64, chatid: i64) {
+        self.send_json(
+            "/sendMessage",
+            TgSendMsg {
+                chat_id: chatid,
+                text: text,
+                reply_to_message_id: Some(mid),
+                reply_markup: None,
+            },
+        )
+    }
+
+    pub fn send_kb(
+        &self,
+        text: String,
+        kb: TgInlineKeyboardMarkup,
+        chatid: i64,
+    ) -> Result<TgResponse<TgMessageLite>, String> {
+        self.send_json_recv_json(
+            "/sendMessage",
+            TgSendMsg {
+                chat_id: chatid,
+                text: text,
+                reply_to_message_id: None,
+                reply_markup: Some(kb),
+            },
+        )
+    }
+
+    pub fn update_kb(&self, msgid: u64, chatid: i64, kb: TgInlineKeyboardMarkup) {
+        self.send_json(
+            "/editMessageReplyMarkup",
+            TgEditMsgReplyMarkup {
+                chat_id: chatid,
+                message_id: msgid,
+                reply_markup: Some(kb),
+            },
+        );
+    }
 }
 
 pub fn get_whoami(user: &TgUser, chat: &TgChat) -> String {
     let mut acc = String::new();
-    write!(&mut acc,
-           "I see you as: {:#?}, and we are currently here: {:#?}",
-           user,
-           chat)
-        .unwrap();
+    write!(
+        &mut acc,
+        "I see you as: {:#?}, and we are currently here: {:#?}",
+        user,
+        chat
+    ).unwrap();
     acc
 }
 
 pub fn make_name(user: &TgUser) -> String {
     let mut res = String::new();
     match *user {
-        TgUser { username: Some(ref u), .. } => {
-            write!(&mut res, "@{}", u).unwrap()
-        }
+        TgUser {
+            username: Some(ref u),
+            ..
+        } => write!(&mut res, "@{}", u).unwrap(),
 
-        TgUser { first_name: ref f, last_name: Some(ref l), username: None, .. } => {
-            write!(&mut res, "{} {}", f, l.chars().next().unwrap_or('?')).unwrap()
-        }
+        TgUser {
+            first_name: ref f,
+            last_name: Some(ref l),
+            username: None,
+            ..
+        } => write!(&mut res, "{} {}", f, l.chars().next().unwrap_or('?')).unwrap(),
 
-        TgUser { first_name: ref f, username: None, .. } => res.push_str(f),
+        TgUser {
+            first_name: ref f,
+            username: None,
+            ..
+        } => res.push_str(f),
     }
     res
 }
@@ -306,12 +335,15 @@ pub fn read_update(src: &mut Read) -> Result<(TgUpdate, String), String> {
     src.read_to_string(&mut body).unwrap();
 
     match serde_json::from_str::<TgUpdate>(&body) {
-        Ok(upd) => {
-            Ok((upd, body))
-        }
+        Ok(upd) => Ok((upd, body)),
         Err(err) => {
             let mut errstr = String::new();
-            write!(&mut errstr, "received: {}\nparsing error: {}", &body, &err.to_string()).unwrap();
+            write!(
+                &mut errstr,
+                "received: {}\nparsing error: {}",
+                &body,
+                &err.to_string()
+            ).unwrap();
             Err(errstr)
         }
     }

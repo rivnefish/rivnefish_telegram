@@ -1,12 +1,13 @@
-extern crate iron;
+
 extern crate bodyparser;
+extern crate iron;
 extern crate persistent;
 extern crate router;
 extern crate time;
 
+extern crate env_logger;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
 
 #[macro_use]
 extern crate serde_derive;
@@ -14,7 +15,7 @@ extern crate serde_derive;
 use iron::prelude::*;
 use iron::typemap::Key;
 
-use persistent::{State, Read};
+use persistent::{Read, State};
 
 use time::PreciseTime;
 
@@ -23,10 +24,9 @@ use std::collections::HashMap;
 
 #[allow(dead_code)]
 mod telegram;
-use telegram::{TgBotApi, TgUpdate, TgResponse,
-               TgInlineQuery, TgInlineQueryResult, TgAnswerInlineQuery,
-               TgInlineKeyboardMarkup, TgInlineKeyboardButton,
-               TgInputMessageContent, TgChosenInlineResult};
+use telegram::{TgAnswerInlineQuery, TgBotApi, TgChosenInlineResult, TgInlineKeyboardButton,
+               TgInlineKeyboardMarkup, TgInlineQuery, TgInlineQueryResult, TgInputMessageContent,
+               TgResponse, TgUpdate};
 
 mod fish;
 use fish::{RfApi, RfPlace, RfPlaceInfo};
@@ -38,10 +38,10 @@ fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo
             let cache = &state.cache;
 
             if let Some(info) = cache.get(&id) {
-                return info.clone()
+                return info.clone();
             }
-        },
-        Err(_) => return None
+        }
+        Err(_) => return None,
     }
 
     let fetched = rfapi.fetch_place_info(id);
@@ -70,7 +70,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
             ..
         } => {
             info!("CIR: resuldid: {}, inline msg id: {}", result_id, imi);
-        },
+        }
         TgUpdate {
             message: None,
             callback_query: None,
@@ -94,17 +94,21 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                     if query_upper.len() == 0 {
                         state.top_ids.clone()
                     } else {
-                        places.iter()
+                        places
+                            .iter()
                             .filter(|p| p.name.to_uppercase().contains(&query_upper))
-                            .map(|p| p.id).take(10).collect()
+                            .map(|p| p.id)
+                            .take(10)
+                            .collect()
                     }
-                },
-                Err(_) => Vec::new()
+                }
+                Err(_) => Vec::new(),
             };
 
             let rfapi = fish::RfApi::new();
 
-            let infos = matching_ids.iter()
+            let infos = matching_ids
+                .iter()
                 .map(|i| get_info_for(st, &rfapi, *i))
                 .filter(|ci| ci.is_some())
                 .map(|ci| ci.unwrap())
@@ -124,22 +128,38 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                             disable_web_page_preview: false,
                         },
                         reply_markup: Some(TgInlineKeyboardMarkup {
-                            inline_keyboard: vec![vec![TgInlineKeyboardButton::Url {
-                                text: "детальніше на вебсайті".to_owned(),
-                                url: pi.url,
-                            }]]
+                            inline_keyboard: vec![
+                                vec![
+                                    TgInlineKeyboardButton::Url {
+                                        text: "детальніше на вебсайті"
+                                            .to_owned(),
+                                        url: pi.url,
+                                    },
+                                ],
+                            ],
                         }),
-                    }})
+                    }
+                })
                 .collect::<Vec<_>>();
 
             let t1 = PreciseTime::now();
 
-            info!("IQ id {}, from user '{}' ({}), query: `{}`, took {}",
-                     iq_id, telegram::make_name(&user), user.id, query_str, t0.to(t1));
+            info!(
+                "IQ id {}, from user '{}' ({}), query: `{}`, took {}",
+                iq_id,
+                telegram::make_name(&user),
+                user.id,
+                query_str,
+                t0.to(t1)
+            );
 
             let resp: Result<TgResponse<bool>, String> = tg.send_json_recv_json(
                 "/answerInlineQuery",
-                TgAnswerInlineQuery {inline_query_id: iq_id, results: infos});
+                TgAnswerInlineQuery {
+                    inline_query_id: iq_id,
+                    results: infos,
+                },
+            );
 
             if resp.is_err() {
                 error!("error answering IQ: {:#?}", resp);
@@ -162,7 +182,10 @@ impl Key for BotState {
     type Value = BotState;
 }
 
-fn modify_bot_state<F>(req: &mut Request, f: F) where F: FnOnce(&mut BotState) {
+fn modify_bot_state<F>(req: &mut Request, f: F)
+where
+    F: FnOnce(&mut BotState),
+{
     if let Ok(arc_st) = req.get::<State<BotState>>() {
         if let Ok(mut guard) = arc_st.write() {
             let bs = &mut *guard;
@@ -191,7 +214,6 @@ struct TopIds {
 }
 
 fn set_top(req: &mut Request) -> IronResult<Response> {
-
     match req.get::<bodyparser::Struct<TopIds>>() {
         Ok(Some(s)) => modify_bot_state(req, |bs: &mut BotState| {
             bs.top_ids = s.ids.clone();
@@ -213,15 +235,19 @@ struct Config {
 fn main() {
     let format_fn = |record: &log::LogRecord| {
         let t = time::now();
-        format!("{} {} [{}] {}",
-                time::strftime("%Y-%m-%d %H:%M:%S", &t).unwrap(),
-                record.level(),
-                record.location().module_path(),
-                record.args())
+        format!(
+            "{} {} [{}] {}",
+            time::strftime("%Y-%m-%d %H:%M:%S", &t).unwrap(),
+            record.level(),
+            record.location().module_path(),
+            record.args()
+        )
     };
 
     let mut log_builder = env_logger::LogBuilder::new();
-    log_builder.format(format_fn).filter(None, log::LogLevelFilter::Info);
+    log_builder
+        .format(format_fn)
+        .filter(None, log::LogLevelFilter::Info);
 
     if let Ok(ref lcfg) = std::env::var("RUST_LOG") {
         log_builder.parse(lcfg);
@@ -251,8 +277,7 @@ fn main() {
 
     let bot_handler = move |req: &mut Request| bot(req, &config);
 
-    let listenpath: &str = &std::env::var("RVFISH_LISTENPATH")
-        .unwrap_or(String::from("/bot"));
+    let listenpath: &str = &std::env::var("RVFISH_LISTENPATH").unwrap_or(String::from("/bot"));
 
     let reload_handler = |req: &mut Request| reload_places(req);
     let set_top_handler = |req: &mut Request| set_top(req);
@@ -271,11 +296,11 @@ fn main() {
     chain.link(State::<BotState>::both(botstate));
     chain.link_before(Read::<bodyparser::MaxBodyLength>::one(1024 * 1024));
 
-    let listenaddr: &str = &std::env::var("RVFISH_LISTENADDR")
-        .unwrap_or(String::from("localhost:2358"));
+    let listenaddr: &str =
+        &std::env::var("RVFISH_LISTENADDR").unwrap_or(String::from("localhost:2358"));
 
     match Iron::new(chain).http(listenaddr) {
         Ok(_) => {}
-        Err(e) => error!("iron http failure {}", e.to_string())
+        Err(e) => error!("iron http failure {}", e.to_string()),
     }
 }

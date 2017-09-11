@@ -62,17 +62,14 @@ impl RfApi {
 
     pub fn fetch_all_places(&self) -> Vec<RfPlace> {
         match self.http_client.get(RIVNEFISHURL).unwrap().send() {
-            Ok(resp) => {
-                match serde_json::from_reader::<reqwest::Response,
-                                                Vec<RfPlace>>(resp) {
-                    Ok(ps) => {
-                        info!("fetched {} places", ps.len());
-                        ps
-                    },
-                    Err(e) => {
-                        error!("error parsing rivnefish places: {}", &e);
-                        Vec::new()
-                    }
+            Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfPlace>>(resp) {
+                Ok(ps) => {
+                    info!("fetched {} places", ps.len());
+                    ps
+                }
+                Err(e) => {
+                    error!("error parsing rivnefish places: {}", &e);
+                    Vec::new()
                 }
             },
             Err(e) => {
@@ -85,14 +82,13 @@ impl RfApi {
     pub fn fetch_place_info(&self, placeid: i32) -> Option<RfPlaceInfo> {
         let url = format!("{}/{}", RIVNEFISHURL, placeid);
 
-        match self.http_client.get(&url).unwrap().send(){
-            Ok(resp) => match serde_json::from_reader::<reqwest::Response,
-                                                        RfPlaceInfoRaw>(resp) {
+        match self.http_client.get(&url).unwrap().send() {
+            Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPlaceInfoRaw>(resp) {
                 Ok(pi) => Some(normalize_place_info(pi)),
                 Err(err) => {
                     error!("error parsing rivnefish place {}", err);
                     None
-                },
+                }
             },
             Err(err) => {
                 error!("error fetching rivnefish place {}", err);
@@ -128,18 +124,19 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
         hours_str: match pi.time_to_fish.as_ref().map(|s| s.as_str()) {
             Some("full_day") => Some("цілодобово".to_owned()),
             Some("day_only") => Some("вдень".to_owned()),
-            _ => None
+            _ => None,
         },
         update_str: pi.info_updated_at
             .and_then(|s| time::strptime(&s, "%FT%T.%f%z").ok())
             .and_then(|tm| time::strftime("%F", &tm).ok()),
         contact_str: match (pi.contact_phone, pi.contact_name) {
             (Some(ref p), _) if p.len() == 0 => None,
-            (Some(p), Some(n)) =>
-                Some(format!("{}{} {}",
-                             if p.starts_with("380")
-                             {"+"} else {""},
-                             p, n)),
+            (Some(p), Some(n)) => Some(format!(
+                "{}{} {}",
+                if p.starts_with("380") { "+" } else { "" },
+                p,
+                n
+            )),
             (Some(p), None) => Some(p),
             _ => None,
         },
@@ -157,34 +154,40 @@ fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
-    format!(r#"<b>{n}</b><a href="{t}">&#160;</a>
+    format!(
+        r#"<b>{n}</b><a href="{t}">&#160;</a>
 &#x2B50; {r} <a href="{u}/reports">(звітів: {v})</a>
 {w}
 {a}{h}{d}
 {c}
 &#x1F4B2; {p}
 {i}"#,
-            n = place.name, t = place.featured_image,
-            r = place.rating_str, u = place.url, v = place.votes,
-            w = match place.important {
-                Some(ref s) => format!("&#x26A0; {}\n", s),
-                None => "".to_owned(),
-            },
-            a = match place.area_str {
-                Some(ref s) => format!("&#x25FB; {} ", s),
-                None => "".to_owned(),
-            },
-            h = match place.hours_str {
-                Some(ref s) => format!("&#x23F0; {} ", s),
-                None => "".to_owned(),
-            },
-            d = match place.update_str {
-                Some(ref s) => format!("&#x1F504; {}", s),
-                None => "".to_owned(),
-            },
-            c = match place.contact_str {
-                Some(ref s) => format!("&#x1F4DE; {}\n", s),
-                None => "".to_owned(),
-            },
-            p = place.payment_str, i = place.payment_info)
+        n = place.name,
+        t = place.featured_image,
+        r = place.rating_str,
+        u = place.url,
+        v = place.votes,
+        w = match place.important {
+            Some(ref s) => format!("&#x26A0; {}\n", s),
+            None => "".to_owned(),
+        },
+        a = match place.area_str {
+            Some(ref s) => format!("&#x25FB; {} ", s),
+            None => "".to_owned(),
+        },
+        h = match place.hours_str {
+            Some(ref s) => format!("&#x23F0; {} ", s),
+            None => "".to_owned(),
+        },
+        d = match place.update_str {
+            Some(ref s) => format!("&#x1F504; {}", s),
+            None => "".to_owned(),
+        },
+        c = match place.contact_str {
+            Some(ref s) => format!("&#x1F4DE; {}\n", s),
+            None => "".to_owned(),
+        },
+        p = place.payment_str,
+        i = place.payment_info
+    )
 }
