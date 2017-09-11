@@ -58,7 +58,7 @@ fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo
 
 type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
 
-fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config) {
+fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) {
     let tg = TgBotApi::new(&cfg.bottoken);
     match upd {
         TgUpdate {
@@ -78,7 +78,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
                 id: iq_id,
                 from: user,
                 query: query_str,
-                offset: _,
+                ..
             }),
             ..
         } => {
@@ -91,7 +91,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
 
                     let query_upper = query_str.to_uppercase();
 
-                    if query_upper.len() == 0 {
+                    if query_upper.is_empty() {
                         state.top_ids.clone()
                     } else {
                         places
@@ -167,7 +167,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: String, cfg: &Config
         }
         _ => {
             warn!("received unsupported update: {:#?}", &upd);
-            debug!("original text: {}", &updstr);
+            debug!("original text: {}", updstr);
         }
     }
 }
@@ -267,7 +267,7 @@ fn main() {
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
         match telegram::read_update(&mut req.body) {
             Ok((upd, updstr)) => if let Ok(arc_st) = req.get::<State<BotState>>() {
-                process_update(&arc_st, upd, updstr, cfg);
+                process_update(&arc_st, upd, &updstr, cfg);
             },
             Err(err) => error!("read_update error: {}", err),
         }

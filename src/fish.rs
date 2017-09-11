@@ -113,7 +113,7 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
         rating_str: pi.rating_avg.unwrap_or("--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
         important: match pi.notes {
-            Some(ref p) if p.len() == 0 => None,
+            Some(ref p) if p.is_empty() => None,
             Some(p) => Some(p),
             _ => None,
         },
@@ -130,7 +130,7 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             .and_then(|s| time::strptime(&s, "%FT%T.%f%z").ok())
             .and_then(|tm| time::strftime("%F", &tm).ok()),
         contact_str: match (pi.contact_phone, pi.contact_name) {
-            (Some(ref p), _) if p.len() == 0 => None,
+            (Some(ref p), _) if p.is_empty() => None,
             (Some(p), Some(n)) => Some(format!(
                 "{}{} {}",
                 if p.starts_with("380") { "+" } else { "" },
