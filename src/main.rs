@@ -227,25 +227,34 @@ fn set_top(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(iron::status::Ok))
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Announcement {
-    chat: i64,
+    chat: TgChatId,
     text: String,
+    images: Option<Vec<String>>,
 }
 
 fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     match req.get::<bodyparser::Struct<Announcement>>() {
         Ok(Some(s)) => {
             let tg = TgBotApi::new(&cfg.bottoken);
-            let resp = tg.send_md_text(s.text, s.chat);
-            match resp {
+            match tg.send_md_text(s.text, s.chat.clone()) {
                 Err(err) => error!("/announce: {:?}", err),
                 Ok(TgResponse {ok: false, description, ..}) => error!("/announce: Bot API error: {:?}", description),
                 Ok(_) => info!("/announce: message posted"),
             }
+            if let Some(is) = s.images {
+                if is.len() > 0 {
+                    match tg.send_album(&is, s.chat) {
+                        Err(err) => error!("/announce: {:?}", err),
+                        Ok(TgResponse {ok: false, description, ..}) => error!("/announce: Bot API error: {:?}", description),
+                        Ok(_) => info!("/announce: message posted"),
+                    }
+                }
+            }
         },
         Ok(None) => info!("/announce request has empty body"),
-        Err(err) => error!("/announce: {:?}", err),
+        Err(err) => error!("/announce: {:?} while parsing request body", err),
     }
     Ok(Response::with(iron::status::Ok))
 }

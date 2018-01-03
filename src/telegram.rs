@@ -88,18 +88,48 @@ pub struct TgCallbackQuery {
 }
 
 // Outgoing structs
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum TgChatId {
+    Integer(i64),
+    Username(String),
+}
+
 #[derive(Serialize)]
 pub struct TgSendMsg {
-    chat_id: i64,
+    chat_id: TgChatId,
     text: String,
     #[serde(skip_serializing_if = "Option::is_none")] parse_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] reply_to_message_id: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
 
+
+#[derive(Serialize)]
+struct TgInputMediaPhoto {
+    #[serde(rename = "type")] type_: String,
+    media: String,
+}
+
+impl TgInputMediaPhoto {
+    fn new(url: &str) -> Self {
+        Self {
+            type_: "photo".to_owned(),
+            media: String::from(url),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct TgSendMediaGroup {
+    chat_id: TgChatId,
+    media: Vec<TgInputMediaPhoto>,
+}
+
 #[derive(Serialize)]
 pub struct TgEditMsgReplyMarkup {
-    chat_id: i64,
+    chat_id: TgChatId,
     message_id: u64,
     #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
@@ -238,7 +268,7 @@ impl<'a> TgBotApi<'a> {
         );
     }
 
-    pub fn send_text(&self, text: String, chatid: i64) {
+    pub fn send_text(&self, text: String, chatid: TgChatId) {
         self.send_json(
             "/sendMessage",
             TgSendMsg {
@@ -251,7 +281,7 @@ impl<'a> TgBotApi<'a> {
         );
     }
 
-    pub fn send_md_text(&self, text: String, chatid: i64) -> Result<TgResponse<TgMessageLite>, String> {
+    pub fn send_md_text(&self, text: String, chatid: TgChatId) -> Result<TgResponse<TgMessageLite>, String> {
         self.send_json_recv_json(
             "/sendMessage",
             TgSendMsg {
@@ -264,7 +294,17 @@ impl<'a> TgBotApi<'a> {
         )
     }
 
-    pub fn send_reply(&self, text: String, mid: u64, chatid: i64) {
+    pub fn send_album(&self, urls: &[String], chatid: TgChatId) -> Result<TgResponse<Vec<TgMessageLite>>, String> {
+        self.send_json_recv_json(
+            "/sendMediaGroup",
+            TgSendMediaGroup {
+                chat_id: chatid,
+                media: urls.iter().map(|url| TgInputMediaPhoto::new(&url)).collect(),
+            }
+        )
+    }
+
+    pub fn send_reply(&self, text: String, mid: u64, chatid: TgChatId) {
         self.send_json(
             "/sendMessage",
             TgSendMsg {
@@ -277,12 +317,8 @@ impl<'a> TgBotApi<'a> {
         )
     }
 
-    pub fn send_kb(
-        &self,
-        text: String,
-        kb: TgInlineKeyboardMarkup,
-        chatid: i64,
-    ) -> Result<TgResponse<TgMessageLite>, String> {
+    pub fn send_kb(&self, text: String, kb: TgInlineKeyboardMarkup, chatid: TgChatId)
+    -> Result<TgResponse<TgMessageLite>, String> {
         self.send_json_recv_json(
             "/sendMessage",
             TgSendMsg {
@@ -295,7 +331,7 @@ impl<'a> TgBotApi<'a> {
         )
     }
 
-    pub fn update_kb(&self, msgid: u64, chatid: i64, kb: TgInlineKeyboardMarkup) {
+    pub fn update_kb(&self, msgid: u64, kb: TgInlineKeyboardMarkup, chatid: TgChatId) {
         self.send_json(
             "/editMessageReplyMarkup",
             TgEditMsgReplyMarkup {
