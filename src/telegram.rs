@@ -92,6 +92,7 @@ pub struct TgCallbackQuery {
 pub struct TgSendMsg {
     chat_id: i64,
     text: String,
+    #[serde(skip_serializing_if = "Option::is_none")] parse_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")] reply_to_message_id: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
@@ -243,10 +244,24 @@ impl<'a> TgBotApi<'a> {
             TgSendMsg {
                 chat_id: chatid,
                 text: text,
+                parse_mode: None,
                 reply_to_message_id: None,
                 reply_markup: None,
             },
         );
+    }
+
+    pub fn send_md_text(&self, text: String, chatid: i64) -> Result<TgResponse<TgMessageLite>, String> {
+        self.send_json_recv_json(
+            "/sendMessage",
+            TgSendMsg {
+                chat_id: chatid,
+                text: text,
+                parse_mode: Some("Markdown".to_owned()),
+                reply_to_message_id: None,
+                reply_markup: None,
+            },
+        )
     }
 
     pub fn send_reply(&self, text: String, mid: u64, chatid: i64) {
@@ -255,6 +270,7 @@ impl<'a> TgBotApi<'a> {
             TgSendMsg {
                 chat_id: chatid,
                 text: text,
+                parse_mode: None,
                 reply_to_message_id: Some(mid),
                 reply_markup: None,
             },
@@ -272,6 +288,7 @@ impl<'a> TgBotApi<'a> {
             TgSendMsg {
                 chat_id: chatid,
                 text: text,
+                parse_mode: None,
                 reply_to_message_id: None,
                 reply_markup: Some(kb),
             },

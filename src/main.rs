@@ -11,6 +11,8 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate reqwest;
+#[macro_use]
+extern crate lazy_static;
 
 use iron::prelude::*;
 use iron::typemap::Key;
@@ -225,10 +227,40 @@ fn set_top(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(iron::status::Ok))
 }
 
+#[derive(Deserialize, Clone)]
+struct Announcement {
+    chat: i64,
+    text: String,
+}
+
+fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
+    match req.get::<bodyparser::Struct<Announcement>>() {
+        Ok(Some(s)) => {
+            let tg = TgBotApi::new(&cfg.bottoken);
+            let resp = tg.send_md_text(s.text, s.chat);
+            match resp {
+                Err(err) => error!("/announce: {:?}", err),
+                Ok(TgResponse {ok: false, description, ..}) => error!("/announce: Bot API error: {:?}", description),
+                Ok(_) => info!("/announce: message posted"),
+            }
+        },
+        Ok(None) => info!("/announce request has empty body"),
+        Err(err) => error!("/announce: {:?}", err),
+    }
+    Ok(Response::with(iron::status::Ok))
+}
+
 #[allow(dead_code)]
 struct Config {
     botname: String,
     bottoken: String,
+}
+
+lazy_static! {
+    static ref CONFIG: Config = Config {
+        botname: std::env::var("RVFISH_BOTNAME").unwrap_or("@".to_owned()),
+        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or("".to_owned()),
+    };
 }
 
 fn main() {
@@ -250,13 +282,6 @@ fn main() {
 
     log_builder.init();
 
-    let mut router = router::Router::new();
-
-    let config = Config {
-        botname: std::env::var("RVFISH_BOTNAME").unwrap_or_else(|_| "@".to_owned()),
-        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or_else(|_| "".to_owned()),
-    };
-
     fn bot(req: &mut Request, cfg: &Config) -> IronResult<Response> {
         match telegram::read_update(&mut req.body) {
             Ok((upd, updstr)) => if let Ok(arc_st) = req.get::<State<BotState>>() {
@@ -268,17 +293,17 @@ fn main() {
         Ok(Response::with(iron::status::Ok))
     }
 
-    let bot_handler = move |req: &mut Request| bot(req, &config);
+    let bot_handler = |req: &mut Request| bot(req, &CONFIG);
+    let announce_handler = |req: &mut Request| announce(req, &CONFIG);
 
     let listenpath: &str =
-        &std::env::var("RVFISH_LISTENPATH").unwrap_or_else(|_| "/bot".to_owned());
+        &std::env::var("RVFISH_LISTENPATH").unwrap_or("/bot".to_owned());
 
-    let reload_handler = |req: &mut Request| reload_places(req);
-    let set_top_handler = |req: &mut Request| set_top(req);
-
+    let mut router = router::Router::new();
     router.post(listenpath, bot_handler, "bot");
-    router.get("/reload_places", reload_handler, "reload");
-    router.post("/set_top", set_top_handler, "set_top");
+    router.get("/reload_places", reload_places, "reload");
+    router.post("/set_top", set_top, "set_top");
+    router.post("/announce", announce_handler, "announce");
 
     let botstate = BotState {
         places: Vec::new(),
@@ -291,7 +316,7 @@ fn main() {
     chain.link_before(Read::<bodyparser::MaxBodyLength>::one(1024 * 1024));
 
     let listenaddr: &str =
-        &std::env::var("RVFISH_LISTENADDR").unwrap_or_else(|_| "localhost:2358".to_owned());
+        &std::env::var("RVFISH_LISTENADDR").unwrap_or("localhost:2358".to_owned());
 
     match Iron::new(chain).http(listenaddr) {
         Ok(_) => {}
