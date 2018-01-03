@@ -52,7 +52,9 @@ Content-Type: application/json
 
 {
     "chat": <chatid>,
-    "text": "*text* _with_ basic [Markdown support](https://core.telegram.org/bots/api#markdown-style)"
+    "text": "*text* _with_ basic [Markdown support](https://core.telegram.org/bots/api#markdown-style)",
+    "images": [<url1>, <url2>, ...]
 }
 ```
-```
+   `images` list is optional, if present bot will post an album of given photos.
+   `<chatid>` could be either numeric id or `@<channelname>` for channels.
