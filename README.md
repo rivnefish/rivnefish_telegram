@@ -31,7 +31,7 @@ All binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegr
   ```
 3. Run the executable:
   ```
-  RUST_BACKTRACE=1 nohup ./rvfish_bot >>output.log 2>&1 &
+  ./rvfish_bot
   ```
 4. Tell bot to update itself with fishing places:
   ```
@@ -45,3 +45,14 @@ Content-Type: application/json
 {"ids": [20, 21, 800]}
 ```
 6. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
+7. Use `/announce` to post messages to chats via the bot:
+```
+POST http://localhost:<port>/announce
+Content-Type: application/json
+
+{
+    "chat": <chatid>,
+    "text": "*text* _with_ basic [Markdown support](https://core.telegram.org/bots/api#markdown-style)"
+}
+```
+```
