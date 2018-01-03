@@ -1,6 +1,6 @@
-extern crate reqwest;
-extern crate serde_json;
-extern crate time;
+use reqwest;
+use serde_json;
+use time;
 
 const RIVNEFISHURL: &'static str = "https://rivnefish.com/api/v1/places";
 
@@ -56,12 +56,12 @@ pub struct RfApi {
 impl RfApi {
     pub fn new() -> RfApi {
         RfApi {
-            http_client: reqwest::Client::new().unwrap(),
+            http_client: reqwest::Client::new(),
         }
     }
 
     pub fn fetch_all_places(&self) -> Vec<RfPlace> {
-        match self.http_client.get(RIVNEFISHURL).unwrap().send() {
+        match self.http_client.get(RIVNEFISHURL).send() {
             Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfPlace>>(resp) {
                 Ok(ps) => {
                     info!("fetched {} places", ps.len());
@@ -82,7 +82,7 @@ impl RfApi {
     pub fn fetch_place_info(&self, placeid: i32) -> Option<RfPlaceInfo> {
         let url = format!("{}/{}", RIVNEFISHURL, placeid);
 
-        match self.http_client.get(&url).unwrap().send() {
+        match self.http_client.get(&url).send() {
             Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPlaceInfoRaw>(resp) {
                 Ok(pi) => Some(normalize_place_info(pi)),
                 Err(err) => {

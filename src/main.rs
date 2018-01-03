@@ -3,13 +3,14 @@ extern crate iron;
 extern crate persistent;
 extern crate router;
 extern crate time;
-
-extern crate env_logger;
 #[macro_use]
 extern crate log;
-
+extern crate env_logger;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde;
+extern crate serde_json;
+extern crate reqwest;
 
 use iron::prelude::*;
 use iron::typemap::Key;
@@ -19,13 +20,12 @@ use persistent::{Read, State};
 use time::PreciseTime;
 
 use std::sync::{Arc, RwLock};
+use std::io::Write;
 use std::collections::HashMap;
 
 #[allow(dead_code)]
 mod telegram;
-use telegram::{TgAnswerInlineQuery, TgBotApi, TgChosenInlineResult, TgInlineKeyboardButton,
-               TgInlineKeyboardMarkup, TgInlineQuery, TgInlineQueryResult, TgInputMessageContent,
-               TgResponse, TgUpdate};
+use telegram::*;
 
 mod fish;
 use fish::{RfApi, RfPlace, RfPlaceInfo};
@@ -232,29 +232,23 @@ struct Config {
 }
 
 fn main() {
-    let format_fn = |record: &log::LogRecord| {
-        let t = time::now();
-        format!(
+    let mut log_builder = env_logger::Builder::new();
+    log_builder.format(|buf, record| {
+        writeln!(
+            buf,
             "{} {} [{}] {}",
-            time::strftime("%Y-%m-%d %H:%M:%S", &t).unwrap(),
+            time::strftime("%Y-%m-%d %H:%M:%S", &time::now()).unwrap(),
             record.level(),
-            record.location().module_path(),
+            record.module_path().unwrap_or("?"),
             record.args()
         )
-    };
-
-    let mut log_builder = env_logger::LogBuilder::new();
-    log_builder
-        .format(format_fn)
-        .filter(None, log::LogLevelFilter::Info);
+    }).filter(None, log::LevelFilter::Info);
 
     if let Ok(ref lcfg) = std::env::var("RUST_LOG") {
         log_builder.parse(lcfg);
     }
 
-    if let Err(e) = log_builder.init() {
-        panic!("unable to start {}", e);
-    }
+    log_builder.init();
 
     let mut router = router::Router::new();
 

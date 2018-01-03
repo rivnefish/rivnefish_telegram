@@ -1,7 +1,7 @@
-extern crate reqwest;
-extern crate serde;
-extern crate serde_json;
-
+use reqwest;
+use serde::ser::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json;
 use std::io::Read;
 use std::fmt::Write;
 
@@ -174,11 +174,11 @@ impl<'a> TgBotApi<'a> {
     pub fn new(token: &str) -> TgBotApi {
         TgBotApi {
             api_token: token,
-            http_client: reqwest::Client::new().unwrap(),
+            http_client: reqwest::Client::new(),
         }
     }
 
-    pub fn send_json<S: serde::ser::Serialize>(&self, method: &str, obj: S) {
+    pub fn send_json<S: Serialize>(&self, method: &str, obj: S) {
         let mut url = String::new();
         url.push_str(BASEURL);
         url.push_str("/bot");
@@ -189,7 +189,6 @@ impl<'a> TgBotApi<'a> {
             hs.set(reqwest::header::ContentType::json());
             if let Err(e) = self.http_client
                 .post(&url)
-                .unwrap()
                 .headers(hs)
                 .body(bod)
                 .send()
@@ -200,9 +199,7 @@ impl<'a> TgBotApi<'a> {
     }
 
     pub fn send_json_recv_json<S, D>(&self, method: &str, obj: S) -> Result<D, String>
-    where
-        S: serde::ser::Serialize,
-        D: serde::de::DeserializeOwned,
+    where S: Serialize, D: DeserializeOwned
     {
         match serde_json::to_string(&obj) {
             Ok(bod) => {
@@ -216,7 +213,6 @@ impl<'a> TgBotApi<'a> {
                 hs.set(reqwest::header::ContentType::json());
                 match self.http_client
                     .post(&url)
-                    .unwrap()
                     .headers(hs)
                     .body(bod)
                     .send()
