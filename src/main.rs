@@ -215,16 +215,25 @@ struct TopIds {
 }
 
 fn set_top(req: &mut Request) -> IronResult<Response> {
-    match req.get::<bodyparser::Struct<TopIds>>() {
-        Ok(Some(s)) => modify_bot_state(req, |bs: &mut BotState| {
-            bs.top_ids = s.ids.clone();
-            info!("updated top fishing places with {} items", bs.top_ids.len());
-        }),
-        Ok(None) => info!("/set_top request has empty body"),
-        Err(err) => error!("/set_top: {:?}", err),
-    }
+    let status = match req.get::<bodyparser::Struct<TopIds>>() {
+        Ok(Some(s)) => {
+            modify_bot_state(req, |bs: &mut BotState| {
+                bs.top_ids = s.ids.clone();
+                info!("updated top fishing places with {} items", bs.top_ids.len());
+            });
+            iron::status::Ok
+        },
+        Ok(None) => {
+            info!("/set_top request has empty body");
+            iron::status::BadRequest
+        },
+        Err(err) => {
+            error!("/set_top: {:?}", err);
+            iron::status::BadRequest
+        },
+    };
 
-    Ok(Response::with(iron::status::Ok))
+    Ok(Response::with(status))
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -235,28 +244,53 @@ struct Announcement {
 }
 
 fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
-    match req.get::<bodyparser::Struct<Announcement>>() {
+    let status = match req.get::<bodyparser::Struct<Announcement>>() {
         Ok(Some(s)) => {
             let tg = TgBotApi::new(&cfg.bottoken);
             match tg.send_md_text(s.text, s.chat.clone()) {
-                Err(err) => error!("/announce: {:?}", err),
-                Ok(TgResponse {ok: false, description, ..}) => error!("/announce: Bot API error: {:?}", description),
-                Ok(_) => info!("/announce: message posted"),
-            }
-            if let Some(is) = s.images {
-                if is.len() > 0 {
-                    match tg.send_album(&is, s.chat) {
-                        Err(err) => error!("/announce: {:?}", err),
-                        Ok(TgResponse {ok: false, description, ..}) => error!("/announce: Bot API error: {:?}", description),
-                        Ok(_) => info!("/announce: message posted"),
+                Err(err) => {
+                    error!("/announce: {:?}", err);
+                    iron::status::InternalServerError
+                },
+                Ok(TgResponse {ok: false, description, ..}) => {
+                    error!("/announce: Bot API error: {:?}", description);
+                    iron::status::InternalServerError
+                },
+                Ok(_) => if let Some(is) = s.images {
+                    if is.len() > 0 {
+                        match tg.send_album(&is, s.chat) {
+                            Err(err) => {
+                                error!("/announce: {:?}", err);
+                                iron::status::InternalServerError
+                            },
+                            Ok(TgResponse {ok: false, description, ..}) => {
+                                error!("/announce: Bot API error: {:?}", description);
+                                iron::status::InternalServerError
+                            },
+                            Ok(_) => {
+                                info!("/announce: message posted");
+                                iron::status::Ok
+                            },
+                        }
+                    } else {
+                        iron::status::Ok
                     }
-                }
+                } else {
+                    iron::status::Ok
+                },
             }
         },
-        Ok(None) => info!("/announce request has empty body"),
-        Err(err) => error!("/announce: {:?} while parsing request body", err),
-    }
-    Ok(Response::with(iron::status::Ok))
+        Ok(None) => {
+            info!("/announce request has empty body");
+            iron::status::BadRequest
+        },
+        Err(err) => {
+            error!("/announce: {:?} while parsing request body", err);
+            iron::status::BadRequest
+        },
+    };
+
+    Ok(Response::with(status))
 }
 
 #[allow(dead_code)]
