@@ -28,6 +28,7 @@ All binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegr
   export RVFISH_LISTENPATH=/<webhookpath>
   export RVFISH_BOTNAME=@<botname>
   export RVFISH_BOTTOKEN=<bottoken>
+  export RVFISH_CHANNEL=@<channel>
   ```
 3. Run the executable:
   ```
@@ -37,15 +38,18 @@ All binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegr
   ```
   GET http://localhost:<port>/reload_places
   ```
-5. Set up list of places to be shown upon empty inline query:
+5. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
+
+## Extras
+
+### Set up list of places to be shown upon empty inline query:
 ```
 POST http://localhost:<port>/set_top
 Content-Type: application/json
 
 {"ids": [20, 21, 800]}
 ```
-6. Configure nginx to proxy_pass `/<webhookpath>` to `localhost:<port>/<webhookpath>`
-7. Use `/announce` to post messages to chats via the bot:
+### Use `/announce` to post messages to chats via the bot:
 ```
 POST http://localhost:<port>/announce
 Content-Type: application/json
@@ -56,5 +60,23 @@ Content-Type: application/json
     "images": [<url1>, <url2>, ...]
 }
 ```
-   `images` list is optional, if present bot will post an album of given photos.
+   `images` list is optional, if present, bot will post an album of given photos.
    `<chatid>` could be either numeric id or `@<channelname>` for channels.
+### Use `/publish` to publish fishing report in configured channel.
+```
+POST http://localhost:<port>/publish
+Content-Type: application/json
+
+{"id": <reportid>}
+```
+   This will post a nice card with report details and photos in channel configured by `RVFISH_CHANNEL` env variable.
+   Intended usage: automatically notify channel subscribers when new report appears (webhook for site).
+
+These requests return:
+- `200 OK` on success
+- `400 Bad Request` if request is malformed (bad JSON, etc.)
+- `500 Internal Server Error` if unable to fulfill request (bad chat id, bad report id, etc.)
+
+## Logging
+By default logging level is `INFO`, bot will write some meaningful information on any action taken both success and error.
+Whenever request returns error, log is the first place to check for details.
