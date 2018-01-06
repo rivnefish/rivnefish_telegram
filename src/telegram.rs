@@ -145,9 +145,14 @@ pub struct TgInlineKeyboardMarkup {
 }
 
 impl TgInlineKeyboardMarkup {
-    pub fn new() -> TgInlineKeyboardMarkup {
-        TgInlineKeyboardMarkup {
+    pub fn new() -> Self {
+        Self {
             inline_keyboard: vec![vec![]],
+        }
+    }
+    pub fn url_button(text: String, url: String) -> Self {
+        Self {
+            inline_keyboard: vec![vec![TgInlineKeyboardButton::Url{text, url}]],
         }
     }
 }
@@ -195,6 +200,7 @@ pub struct TgChosenInlineResult {
 }
 
 const BASEURL: &'static str = "https://api.telegram.org";
+const MAX_ALBUM_SIZE: usize = 10;
 
 pub struct TgBotApi<'a> {
     api_token: &'a str,
@@ -281,7 +287,8 @@ impl<'a> TgBotApi<'a> {
         );
     }
 
-    pub fn send_md_text(&self, text: String, chatid: TgChatId) -> Result<TgResponse<TgMessageLite>, String> {
+    pub fn send_md_text(&self, text: String, chatid: TgChatId, kb: Option<TgInlineKeyboardMarkup>)
+    -> Result<TgResponse<TgMessageLite>, String> {
         self.send_json_recv_json(
             "/sendMessage",
             TgSendMsg {
@@ -289,17 +296,18 @@ impl<'a> TgBotApi<'a> {
                 text: text,
                 parse_mode: Some("Markdown".to_owned()),
                 reply_to_message_id: None,
-                reply_markup: None,
+                reply_markup: kb,
             },
         )
     }
 
-    pub fn send_album(&self, urls: &[String], chatid: TgChatId) -> Result<TgResponse<Vec<TgMessageLite>>, String> {
+    pub fn send_album<'u, I: Iterator<Item=&'u String>>(&self, urls: I, chatid: TgChatId)
+    -> Result<TgResponse<Vec<TgMessageLite>>, String> {
         self.send_json_recv_json(
             "/sendMediaGroup",
             TgSendMediaGroup {
                 chat_id: chatid,
-                media: urls.iter().map(|url| TgInputMediaPhoto::new(&url)).collect(),
+                media: urls.map(|url| TgInputMediaPhoto::new(url)).take(MAX_ALBUM_SIZE).collect(),
             }
         )
     }

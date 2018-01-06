@@ -2,7 +2,33 @@ use reqwest;
 use serde_json;
 use time;
 
-const RIVNEFISHURL: &'static str = "https://rivnefish.com/api/v1/places";
+const RIVNEFISHURL: &'static str = "https://rivnefish.com/api/v1";
+
+#[derive(Deserialize)]
+struct RfPagination {
+    next_page: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct RfPage<Entry> {
+    meta: RfPagination,
+    data: Vec<Entry>,
+}
+
+#[derive(Deserialize)]
+pub struct RfReportPhoto {
+    pub medium_url: String,
+}
+
+#[derive(Deserialize)]
+pub struct RfReportInfo {
+    pub id: i32,
+    pub title: String,
+    pub short_description: String,
+    pub url: String,
+    //pub place: RfPlace,
+    pub photos: Vec<RfReportPhoto>,
+}
 
 #[derive(Deserialize, Debug)]
 pub struct RfPlace {
@@ -49,6 +75,49 @@ pub struct RfPlaceInfo {
     pub id: i32,
 }
 
+struct RfPageIter<'a> {
+    http_client: &'a reqwest::Client,
+    next_page: Option<usize>,
+}
+
+impl<'a> RfPageIter<'a> {
+    fn new(client: &'a reqwest::Client) -> Self {
+        Self {
+            http_client: client,
+            next_page: Some(1),
+        }
+    }
+}
+
+impl<'a> Iterator for RfPageIter<'a> {
+    type Item = Vec<RfReportInfo>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_page.is_none() { return None };
+
+        let pageid = self.next_page.unwrap();
+        let url = format!("{}/{}?page={}", RIVNEFISHURL, "reports", pageid);
+
+        let page = match self.http_client.get(&url).send() {
+            Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPage<RfReportInfo>>(resp) {
+                Ok(page) => Some(page),
+                Err(err) => {
+                    error!("error parsing rivnefish reports page #{}: {}", pageid, err);
+                    None
+                },
+            },
+            Err(err) => {
+                error!("error fetching rivnefish reports page #{}: {}", pageid, err);
+                None
+            },
+        };
+
+        self.next_page = page.as_ref().and_then(|p| p.meta.next_page);
+
+        page.map(|p| p.data)
+    }
+}
+
 pub struct RfApi {
     http_client: reqwest::Client,
 }
@@ -61,7 +130,9 @@ impl RfApi {
     }
 
     pub fn fetch_all_places(&self) -> Vec<RfPlace> {
-        match self.http_client.get(RIVNEFISHURL).send() {
+        let url = format!("{}/{}", RIVNEFISHURL, "places");
+
+        match self.http_client.get(&url).send() {
             Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfPlace>>(resp) {
                 Ok(ps) => {
                     info!("fetched {} places", ps.len());
@@ -80,7 +151,7 @@ impl RfApi {
     }
 
     pub fn fetch_place_info(&self, placeid: i32) -> Option<RfPlaceInfo> {
-        let url = format!("{}/{}", RIVNEFISHURL, placeid);
+        let url = format!("{}/{}/{}", RIVNEFISHURL, "places", placeid);
 
         match self.http_client.get(&url).send() {
             Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPlaceInfoRaw>(resp) {
@@ -95,6 +166,16 @@ impl RfApi {
                 None
             }
         }
+    }
+
+    pub fn fetch_report_info(&self, reportid: i32) -> Option<RfReportInfo> {
+        let mut page_iter = RfPageIter::new(&self.http_client);
+        while let Some(mut rs) = page_iter.next() {
+            if let Some(i) = rs.iter().position(|rpt| rpt.id == reportid) {
+                return Some(rs.swap_remove(i)) // Vec<T> -> T (at i) without T::clone()
+            }
+        }
+        None
     }
 }
 
@@ -190,4 +271,8 @@ pub fn get_place_text(place: &RfPlaceInfo) -> String {
         p = place.payment_str,
         i = place.payment_info
     )
+}
+
+pub fn get_report_text(report: &RfReportInfo) -> String {
+    format!("*{t}*\n_{d}_", t = report.title, d = report.short_description)
 }

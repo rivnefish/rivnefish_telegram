@@ -128,17 +128,10 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) 
                             parse_mode: "HTML".to_owned(),
                             disable_web_page_preview: false,
                         },
-                        reply_markup: Some(TgInlineKeyboardMarkup {
-                            inline_keyboard: vec![
-                                vec![
-                                    TgInlineKeyboardButton::Url {
-                                        text: "детальніше на вебсайті"
-                                            .to_owned(),
-                                        url: pi.url,
-                                    },
-                                ],
-                            ],
-                        }),
+                        reply_markup: Some(TgInlineKeyboardMarkup::url_button(
+                            "детальніше на вебсайті".to_owned(),
+                            pi.url,
+                        )),
                     }
                 })
                 .collect::<Vec<_>>();
@@ -236,7 +229,7 @@ fn set_top(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status))
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Deserialize, Clone)]
 struct Announcement {
     chat: TgChatId,
     text: String,
@@ -247,7 +240,7 @@ fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     let status = match req.get::<bodyparser::Struct<Announcement>>() {
         Ok(Some(s)) => {
             let tg = TgBotApi::new(&cfg.bottoken);
-            match tg.send_md_text(s.text, s.chat.clone()) {
+            match tg.send_md_text(s.text, s.chat.clone(), None) {
                 Err(err) => {
                     error!("/announce: {:?}", err);
                     iron::status::InternalServerError
@@ -258,7 +251,7 @@ fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                 },
                 Ok(_) => if let Some(is) = s.images {
                     if is.len() > 0 {
-                        match tg.send_album(&is, s.chat) {
+                        match tg.send_album(is.iter(), s.chat) {
                             Err(err) => {
                                 error!("/announce: {:?}", err);
                                 iron::status::InternalServerError
@@ -281,7 +274,7 @@ fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
             }
         },
         Ok(None) => {
-            info!("/announce request has empty body");
+            info!("/announce: request has empty body");
             iron::status::BadRequest
         },
         Err(err) => {
@@ -293,16 +286,80 @@ fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     Ok(Response::with(status))
 }
 
+#[derive(Deserialize, Clone)]
+struct PublishReport {
+    id: i32,
+}
+
+fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
+    let status = match req.get::<bodyparser::Struct<PublishReport>>() {
+        Ok(Some(p)) => {
+            let fish = RfApi::new();
+            if let Some(ref ri) = fish.fetch_report_info(p.id) {
+                let tg = TgBotApi::new(&cfg.bottoken);
+                let text = fish::get_report_text(ri);
+                let chat = TgChatId::Username(cfg.channel.clone());
+                match tg.send_md_text(
+                    text, chat.clone(),
+                    Some(TgInlineKeyboardMarkup::url_button(
+                        "переглянути на вебсайті".to_owned(),
+                        ri.url.clone(),
+                    )),
+                ) {
+                    Err(err) => {
+                        error!("/publish: {:?}", err);
+                        iron::status::InternalServerError
+                    },
+                    Ok(TgResponse {ok: false, description, ..}) => {
+                        error!("/publish: Bot API error: {:?}", description);
+                        iron::status::InternalServerError
+                    },
+                    Ok(_) => {
+                        match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
+                            Err(err) => {
+                                error!("/publish: {:?}", err);
+                                iron::status::InternalServerError
+                            },
+                            Ok(TgResponse {ok: false, description, ..}) => {
+                                error!("/publish: Bot API error: {:?}", description);
+                                iron::status::InternalServerError
+                            },
+                            Ok(_) => {
+                                info!("/publish: message posted");
+                                iron::status::Ok
+                            },
+                        }
+                    }
+                }
+            } else {
+                iron::status::InternalServerError
+            }
+        },
+        Ok(None) => {
+            info!("/publish: request has empty body");
+            iron::status::BadRequest
+        },
+        Err(err) => {
+            error!("/publish: {:?} while parsing request body", err);
+            iron::status::BadRequest
+        },
+    };
+
+    Ok(Response::with(status))
+}
+
 #[allow(dead_code)]
 struct Config {
     botname: String,
     bottoken: String,
+    channel: String,
 }
 
 lazy_static! {
     static ref CONFIG: Config = Config {
         botname: std::env::var("RVFISH_BOTNAME").unwrap_or("@".to_owned()),
         bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or("".to_owned()),
+        channel: std::env::var("RVFISH_CHANNEL").unwrap_or("@".to_owned()),
     };
 }
 
@@ -338,6 +395,7 @@ fn main() {
 
     let bot_handler = |req: &mut Request| bot(req, &CONFIG);
     let announce_handler = |req: &mut Request| announce(req, &CONFIG);
+    let publish_handler = |req: &mut Request| publish(req, &CONFIG);
 
     let listenpath: &str =
         &std::env::var("RVFISH_LISTENPATH").unwrap_or("/bot".to_owned());
@@ -347,6 +405,7 @@ fn main() {
     router.get("/reload_places", reload_places, "reload");
     router.post("/set_top", set_top, "set_top");
     router.post("/announce", announce_handler, "announce");
+    router.post("/publish", publish_handler, "publish");
 
     let botstate = BotState {
         places: Vec::new(),
