@@ -199,7 +199,7 @@ pub struct TgChosenInlineResult {
     pub query: String,
 }
 
-const BASEURL: &'static str = "https://api.telegram.org";
+const BASEURL: &str = "https://api.telegram.org";
 const MAX_ALBUM_SIZE: usize = 10;
 
 pub struct TgBotApi<'a> {

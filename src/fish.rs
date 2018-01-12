@@ -2,7 +2,7 @@ use reqwest;
 use serde_json;
 use time;
 
-const RIVNEFISHURL: &'static str = "https://rivnefish.com/api/v1";
+const RIVNEFISHURL: &str = "https://rivnefish.com/api/v1";
 
 #[derive(Deserialize)]
 struct RfPagination {
@@ -30,13 +30,13 @@ pub struct RfReportInfo {
     pub photos: Vec<RfReportPhoto>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct RfPlace {
     pub name: String,
     pub id: i32,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct RfPlaceInfoRaw {
     pub name: String,
     pub url: String,
@@ -169,8 +169,8 @@ impl RfApi {
     }
 
     pub fn fetch_report_info(&self, reportid: i32) -> Option<RfReportInfo> {
-        let mut page_iter = RfPageIter::new(&self.http_client);
-        while let Some(mut rs) = page_iter.next() {
+        let page_iter = RfPageIter::new(&self.http_client);
+        for mut rs in page_iter {
             if let Some(i) = rs.iter().position(|rpt| rpt.id == reportid) {
                 return Some(rs.swap_remove(i)) // Vec<T> -> T (at i) without T::clone()
             }
@@ -182,15 +182,15 @@ impl RfApi {
 fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
     RfPlaceInfo {
         name: pi.name,
-        thumbnail: pi.thumbnail.unwrap_or_else(|| "".to_owned()),
-        featured_image: pi.featured_image.unwrap_or_else(|| "".to_owned()),
+        thumbnail: pi.thumbnail.unwrap_or_default(),
+        featured_image: pi.featured_image.unwrap_or_default(),
         payment_str: match pi.permit.as_ref().map(|s| s.as_str()) {
             Some("paid") => "Платно",
             Some("free") => "Безкоштовно",
             Some("prohibited") => "Риболовля заборонена",
             _ => "Умови невідомі",
         }.to_owned(),
-        payment_info: pi.price_notes.unwrap_or_else(|| "".to_owned()),
+        payment_info: pi.price_notes.unwrap_or_default(),
         rating_str: pi.rating_avg.unwrap_or_else(|| "--".to_owned()),
         votes: pi.rating_votes.unwrap_or(0),
         important: match pi.notes {
@@ -221,17 +221,10 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
             (Some(p), None) => Some(p),
             _ => None,
         },
-        desc_short: pi.address.unwrap_or_else(|| "".to_owned()),
+        desc_short: pi.address.unwrap_or_default(),
         url: pi.url,
         id: pi.id,
     }
-}
-
-#[allow(dead_code)]
-fn get_place_short_desc(long_desc: &str, sz: usize) -> String {
-    let end = long_desc.char_indices().map(|(p, _)| p).nth(sz);
-    let short_desc = &long_desc[..end.unwrap_or_else(|| long_desc.len())];
-    format!("{}{}", short_desc, end.map_or("", |_| "..."))
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
@@ -248,28 +241,13 @@ pub fn get_place_text(place: &RfPlaceInfo) -> String {
         r = place.rating_str,
         u = place.url,
         v = place.votes,
-        w = match place.important {
-            Some(ref s) => format!("&#x26A0; {}\n", s),
-            None => "".to_owned(),
-        },
-        a = match place.area_str {
-            Some(ref s) => format!("&#x25FB; {} ", s),
-            None => "".to_owned(),
-        },
-        h = match place.hours_str {
-            Some(ref s) => format!("&#x23F0; {} ", s),
-            None => "".to_owned(),
-        },
-        d = match place.update_str {
-            Some(ref s) => format!("&#x1F504; {}", s),
-            None => "".to_owned(),
-        },
-        c = match place.contact_str {
-            Some(ref s) => format!("&#x1F4DE; {}\n", s),
-            None => "".to_owned(),
-        },
+        w = place.important.as_ref().map(|s| format!("&#x26A0; {}\n", s)).unwrap_or_default(),
+        a = place.area_str.as_ref().map(|s| format!("&#x25FB; {} ", s)).unwrap_or_default(),
+        h = place.hours_str.as_ref().map(|s| format!("&#x23F0; {} ", s)).unwrap_or_default(),
+        d = place.update_str.as_ref().map(|s| format!("&#x1F504; {}", s)).unwrap_or_default(),
+        c = place.contact_str.as_ref().map(|s| format!("&#x1F4DE; {}\n", s)).unwrap_or_default(),
         p = place.payment_str,
-        i = place.payment_info
+        i = place.payment_info,
     )
 }
 

@@ -250,7 +250,7 @@ fn announce(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                     iron::status::InternalServerError
                 },
                 Ok(_) => if let Some(is) = s.images {
-                    if is.len() > 0 {
+                    if !is.is_empty() {
                         match tg.send_album(is.iter(), s.chat) {
                             Err(err) => {
                                 error!("/announce: {:?}", err);
@@ -348,18 +348,21 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     Ok(Response::with(status))
 }
 
-#[allow(dead_code)]
 struct Config {
-    botname: String,
+    //botname: String,
     bottoken: String,
     channel: String,
+    listenpath: String,
+    listenaddr: String,
 }
 
 lazy_static! {
     static ref CONFIG: Config = Config {
-        botname: std::env::var("RVFISH_BOTNAME").unwrap_or("@".to_owned()),
-        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or("".to_owned()),
-        channel: std::env::var("RVFISH_CHANNEL").unwrap_or("@".to_owned()),
+        //botname: std::env::var("RVFISH_BOTNAME").unwrap_or_default(),
+        bottoken: std::env::var("RVFISH_BOTTOKEN").unwrap_or_default(),
+        channel: std::env::var("RVFISH_CHANNEL").unwrap_or_default(),
+        listenpath: std::env::var("RVFISH_LISTENPATH").unwrap_or_else(|_| "/bot".to_owned()),
+        listenaddr: std::env::var("RVFISH_LISTENADDR").unwrap_or_else(|_| "localhost:2358".to_owned()),
     };
 }
 
@@ -397,11 +400,8 @@ fn main() {
     let announce_handler = |req: &mut Request| announce(req, &CONFIG);
     let publish_handler = |req: &mut Request| publish(req, &CONFIG);
 
-    let listenpath: &str =
-        &std::env::var("RVFISH_LISTENPATH").unwrap_or("/bot".to_owned());
-
     let mut router = router::Router::new();
-    router.post(listenpath, bot_handler, "bot");
+    router.post(&CONFIG.listenpath, bot_handler, "bot");
     router.get("/reload_places", reload_places, "reload");
     router.post("/set_top", set_top, "set_top");
     router.post("/announce", announce_handler, "announce");
@@ -417,10 +417,7 @@ fn main() {
     chain.link(State::<BotState>::both(botstate));
     chain.link_before(Read::<bodyparser::MaxBodyLength>::one(1024 * 1024));
 
-    let listenaddr: &str =
-        &std::env::var("RVFISH_LISTENADDR").unwrap_or("localhost:2358".to_owned());
-
-    match Iron::new(chain).http(listenaddr) {
+    match Iron::new(chain).http(&CONFIG.listenaddr) {
         Ok(_) => {}
         Err(e) => error!("iron http failure {}", e.to_string()),
     }
