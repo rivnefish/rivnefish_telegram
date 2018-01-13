@@ -21,13 +21,22 @@ pub struct RfReportPhoto {
 }
 
 #[derive(Deserialize)]
+pub struct RfFishingType {
+    name: String,
+}
+
+#[derive(Deserialize)]
 pub struct RfReportInfo {
     pub id: i32,
     pub title: String,
     pub short_description: String,
     pub url: String,
-    //pub place: RfPlace,
+    pub place: RfPlace,
     pub photos: Vec<RfReportPhoto>,
+    pub start_at: String,
+    pub rating: u32,
+    pub fishing_types: Vec<RfFishingType>,
+    pub featured_image: String,
 }
 
 #[derive(Deserialize)]
@@ -157,12 +166,12 @@ impl RfApi {
             Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPlaceInfoRaw>(resp) {
                 Ok(pi) => Some(normalize_place_info(pi)),
                 Err(err) => {
-                    error!("error parsing rivnefish place {}", err);
+                    error!("error parsing rivnefish place #{} {}", placeid, err);
                     None
                 }
             },
             Err(err) => {
-                error!("error fetching rivnefish place {}", err);
+                error!("error fetching rivnefish place #{} {}", placeid, err);
                 None
             }
         }
@@ -229,7 +238,7 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
     format!(
-        r#"<b>{n}</b><a href="{t}">&#160;</a>
+r#"<b>{n}</b><a href="{t}">&#160;</a>
 &#x2B50; {r} <a href="{u}/reports">(звітів: {v})</a>
 {w}
 {a}{h}{d}
@@ -251,6 +260,29 @@ pub fn get_place_text(place: &RfPlaceInfo) -> String {
     )
 }
 
-pub fn get_report_text(report: &RfReportInfo) -> String {
-    format!("*{t}*\n_{d}_", t = report.title, d = report.short_description)
+pub fn get_report_text(report: &RfReportInfo, place: &RfPlaceInfo) -> String {
+    format!(
+r#"<b>{t}</b><a href="{fi}">&#160;</a>
+<b>Оцінка цієї риболовлі</b> {r}
+
+<b>Рибне місце:</b> <a href="{pu}">{pn}</a> (середній рейтинг: {pr})
+<b>Тип рибалки:</b>{f}
+<b>Дата:</b> {d}
+
+<i>{s}</i>"#,
+        t = report.title,
+        fi = report.featured_image,
+        r = "&#x2B50".repeat(report.rating as usize),
+        pu = place.url,
+        pn = place.name,
+        pr = place.rating_str,
+        f = report.fishing_types.iter().fold(
+            String::new(),
+            |mut acc, x| { acc.push(' '); acc.push_str(&x.name); acc }
+        ),
+        d = time::strptime(&report.start_at, "%FT%T.%f%z").ok()
+            .and_then(|tm| time::strftime("%F", &tm).ok())
+            .unwrap_or_default(),
+        s = report.short_description,
+    )
 }

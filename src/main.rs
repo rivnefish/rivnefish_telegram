@@ -295,11 +295,18 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     let status = match req.get::<bodyparser::Struct<PublishReport>>() {
         Ok(Some(p)) => {
             let fish = RfApi::new();
-            if let Some(ref ri) = fish.fetch_report_info(p.id) {
+            let pair = fish.fetch_report_info(p.id).and_then(|ri| {
+                if let Ok(arc_st) = req.get::<State<BotState>>() {
+                    get_info_for(&arc_st, &fish, ri.place.id).map(|pi| (ri, pi))
+                } else {
+                    None
+                }
+            });
+            if let Some((ref ri, ref pi)) = pair {
                 let tg = TgBotApi::new(&cfg.bottoken);
-                let text = fish::get_report_text(ri);
+                let text = fish::get_report_text(ri, pi);
                 let chat = TgChatId::Username(cfg.channel.clone());
-                match tg.send_md_text(
+                match tg.send_rich_text(
                     text, chat.clone(),
                     Some(TgInlineKeyboardMarkup::url_button(
                         "переглянути на вебсайті".to_owned(),
@@ -307,25 +314,25 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                     )),
                 ) {
                     Err(err) => {
-                        error!("/publish: {:?}", err);
+                        error!("/publish #{}: {:?}", ri.id, err);
                         iron::status::InternalServerError
                     },
                     Ok(TgResponse {ok: false, description, ..}) => {
-                        error!("/publish: Bot API error: {:?}", description);
+                        error!("/publish #{}: Bot API error: {:?}", ri.id, description);
                         iron::status::InternalServerError
                     },
                     Ok(_) => {
                         match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
                             Err(err) => {
-                                error!("/publish: {:?}", err);
+                                error!("/publish #{}: {:?}", ri.id, err);
                                 iron::status::InternalServerError
                             },
                             Ok(TgResponse {ok: false, description, ..}) => {
-                                error!("/publish: Bot API error: {:?}", description);
+                                error!("/publish #{}: Bot API error: {:?}", ri.id, description);
                                 iron::status::InternalServerError
                             },
                             Ok(_) => {
-                                info!("/publish: message posted");
+                                info!("/publish #{}: message posted", ri.id);
                                 iron::status::Ok
                             },
                         }

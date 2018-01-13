@@ -287,6 +287,20 @@ impl<'a> TgBotApi<'a> {
         );
     }
 
+    pub fn send_rich_text(&self, text: String, chatid: TgChatId, kb: Option<TgInlineKeyboardMarkup>)
+    -> Result<TgResponse<TgMessageLite>, String> {
+        self.send_json_recv_json(
+            "/sendMessage",
+            TgSendMsg {
+                chat_id: chatid,
+                text: text,
+                parse_mode: Some("HTML".to_owned()),
+                reply_to_message_id: None,
+                reply_markup: kb,
+            },
+        )
+    }
+
     pub fn send_md_text(&self, text: String, chatid: TgChatId, kb: Option<TgInlineKeyboardMarkup>)
     -> Result<TgResponse<TgMessageLite>, String> {
         self.send_json_recv_json(
