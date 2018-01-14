@@ -1,4 +1,5 @@
 use reqwest;
+use serde;
 use serde_json;
 use time;
 
@@ -101,16 +102,13 @@ pub struct RfPlaceInfo {
 }
 
 struct RfPageIter<'a> {
-    http_client: &'a reqwest::Client,
+    api: &'a RfApi,
     next_page: Option<usize>,
 }
 
 impl<'a> RfPageIter<'a> {
-    fn new(client: &'a reqwest::Client) -> Self {
-        Self {
-            http_client: client,
-            next_page: Some(1),
-        }
+    fn new(api: &'a RfApi) -> Self {
+        Self { api, next_page: Some(1) }
     }
 }
 
@@ -121,21 +119,7 @@ impl<'a> Iterator for RfPageIter<'a> {
         if self.next_page.is_none() { return None };
 
         let pageid = self.next_page.unwrap();
-        let url = format!("{}/{}?page={}", RIVNEFISHURL, "reports", pageid);
-
-        let page = match self.http_client.get(&url).send() {
-            Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPage<RfReportInfo>>(resp) {
-                Ok(page) => Some(page),
-                Err(err) => {
-                    error!("error parsing rivnefish reports page #{}: {}", pageid, err);
-                    None
-                },
-            },
-            Err(err) => {
-                error!("error fetching rivnefish reports page #{}: {}", pageid, err);
-                None
-            },
-        };
+        let page = self.api.fetch_reports_page(pageid);
 
         self.next_page = page.as_ref().and_then(|p| p.meta.next_page);
 
@@ -154,71 +138,74 @@ impl RfApi {
         }
     }
 
+    fn fetch<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<T, String> {
+        self.http_client.get(url).send()
+            .map_err(|err| err.to_string())
+            .and_then(|r|
+                serde_json::from_reader::<reqwest::Response, T>(r)
+                    .map_err(|e| e.to_string())
+            )
+    }
+
+    fn fetch_reports_page(&self, pageid: usize) -> Option<RfPage<RfReportInfo>> {
+        let url = format!("{}/{}?page={}", RIVNEFISHURL, "reports", pageid);
+
+        match self.fetch::<RfPage<RfReportInfo>>(&url) {
+            Ok(p) => Some(p),
+            Err(e) => {
+                error!("fetching reports page #{}: {}", pageid, e);
+                None
+            },
+        }
+    }
+
     pub fn fetch_all_fish(&self) -> Vec<RfFish> {
         let url = format!("{}/{}", RIVNEFISHURL, "fish");
 
-        match self.http_client.get(&url).send() {
-            Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfFish>>(resp) {
-                Ok(ps) => {
-                    info!("fetched {} fish kinds", ps.len());
-                    ps
-                }
-                Err(e) => {
-                    error!("error parsing rivnefish fish kinds: {}", &e);
-                    Vec::new()
-                }
+        match self.fetch::<Vec<RfFish>>(&url) {
+            Ok(fs) => {
+                info!("fetched {} kinds of fish", fs.len());
+                fs
             },
             Err(e) => {
-                error!("error reading rivnefish response: {}", &e);
+                error!("fetching fish kinds: {}", e);
                 Vec::new()
-            }
+            },
         }
     }
 
     pub fn fetch_all_places(&self) -> Vec<RfPlace> {
         let url = format!("{}/{}", RIVNEFISHURL, "places");
 
-        match self.http_client.get(&url).send() {
-            Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfPlace>>(resp) {
-                Ok(ps) => {
-                    info!("fetched {} places", ps.len());
-                    ps
-                }
-                Err(e) => {
-                    error!("error parsing rivnefish places: {}", &e);
-                    Vec::new()
-                }
+        match self.fetch::<Vec<RfPlace>>(&url) {
+            Ok(ps) => {
+                info!("fetched {} places", ps.len());
+                ps
             },
             Err(e) => {
-                error!("error reading rivnefish response: {}", &e);
+                error!("fetching places: {}", e);
                 Vec::new()
-            }
+            },
         }
     }
 
     pub fn fetch_place_info(&self, placeid: i32) -> Option<RfPlaceInfo> {
         let url = format!("{}/{}/{}", RIVNEFISHURL, "places", placeid);
 
-        match self.http_client.get(&url).send() {
-            Ok(resp) => match serde_json::from_reader::<reqwest::Response, RfPlaceInfoRaw>(resp) {
-                Ok(pi) => Some(normalize_place_info(pi)),
-                Err(err) => {
-                    error!("error parsing rivnefish place #{} {}", placeid, err);
-                    None
-                }
-            },
-            Err(err) => {
-                error!("error fetching rivnefish place #{} {}", placeid, err);
+        match self.fetch::<RfPlaceInfoRaw>(&url) {
+            Ok(pi) => Some(normalize_place_info(pi)),
+            Err(e) => {
+                error!("fetching place #{}: {}", placeid, e);
                 None
             }
         }
     }
 
     pub fn fetch_report_info(&self, reportid: i32) -> Option<RfReportInfo> {
-        let page_iter = RfPageIter::new(&self.http_client);
-        for mut rs in page_iter {
-            if let Some(i) = rs.iter().position(|rpt| rpt.id == reportid) {
-                return Some(rs.swap_remove(i)) // Vec<T> -> T (at i) without T::clone()
+        let page_iter = RfPageIter::new(&self);
+        for rs in page_iter {
+            if let Some(rpt) = rs.into_iter().find(|rpt| rpt.id == reportid) {
+                return Some(rpt);
             }
         }
         None
