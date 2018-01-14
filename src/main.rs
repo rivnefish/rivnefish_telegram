@@ -30,7 +30,7 @@ mod telegram;
 use telegram::*;
 
 mod fish;
-use fish::{RfApi, RfPlace, RfPlaceInfo};
+use fish::{RfApi, RfPlace, RfPlaceInfo, RfFish};
 
 fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo> {
     match st.read() {
@@ -168,6 +168,7 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) 
 
 struct BotState {
     places: Vec<RfPlace>,
+    fishes: Vec<RfFish>,
     cache: HashMap<i32, Option<RfPlaceInfo>>,
     top_ids: Vec<i32>,
 }
@@ -192,9 +193,11 @@ where
 fn reload_places(req: &mut Request) -> IronResult<Response> {
     let rfapi = fish::RfApi::new();
     let new_places = rfapi.fetch_all_places();
+    let new_fish = rfapi.fetch_all_fish();
 
     modify_bot_state(req, |bs: &mut BotState| {
         bs.places = new_places;
+        bs.fishes = new_fish;
         bs.cache.clear();
         info!("reloaded place list and invalidated cache");
     });
@@ -295,34 +298,20 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
     let status = match req.get::<bodyparser::Struct<PublishReport>>() {
         Ok(Some(p)) => {
             let fish = RfApi::new();
-            let pair = fish.fetch_report_info(p.id).and_then(|ri| {
+            if let Some(ri) = fish.fetch_report_info(p.id) {
                 if let Ok(arc_st) = req.get::<State<BotState>>() {
-                    get_info_for(&arc_st, &fish, ri.place.id).map(|pi| (ri, pi))
-                } else {
-                    None
-                }
-            });
-            if let Some((ref ri, ref pi)) = pair {
-                let tg = TgBotApi::new(&cfg.bottoken);
-                let text = fish::get_report_text(ri, pi);
-                let chat = TgChatId::Username(cfg.channel.clone());
-                match tg.send_rich_text(
-                    text, chat.clone(),
-                    Some(TgInlineKeyboardMarkup::url_button(
-                        "переглянути на вебсайті".to_owned(),
-                        ri.url.clone(),
-                    )),
-                ) {
-                    Err(err) => {
-                        error!("/publish #{}: {:?}", ri.id, err);
-                        iron::status::InternalServerError
-                    },
-                    Ok(TgResponse {ok: false, description, ..}) => {
-                        error!("/publish #{}: Bot API error: {:?}", ri.id, description);
-                        iron::status::InternalServerError
-                    },
-                    Ok(_) => {
-                        match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
+                    let pi = ri.place.as_ref().and_then(|p| get_info_for(&arc_st, &fish, p.id));
+                    let tg = TgBotApi::new(&cfg.bottoken);
+                    if let Ok(g) = arc_st.read() {
+                        let text = fish::get_report_text(&ri, pi.as_ref(), &g.fishes);
+                        let chat = TgChatId::Username(cfg.channel.clone());
+                        match tg.send_rich_text(
+                            text, chat.clone(),
+                            Some(TgInlineKeyboardMarkup::url_button(
+                                "переглянути на вебсайті".to_owned(),
+                                ri.url.clone(),
+                            )),
+                        ) {
                             Err(err) => {
                                 error!("/publish #{}: {:?}", ri.id, err);
                                 iron::status::InternalServerError
@@ -332,14 +321,35 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                                 iron::status::InternalServerError
                             },
                             Ok(_) => {
-                                info!("/publish #{}: message posted", ri.id);
-                                iron::status::Ok
-                            },
+                                if ri.photos.is_empty() {
+                                    info!("/publish #{}: message (no photos) posted", ri.id);
+                                    iron::status::Ok
+                                } else {
+                                    match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
+                                        Err(err) => {
+                                            error!("/publish #{}: {:?}", ri.id, err);
+                                            iron::status::InternalServerError
+                                        },
+                                        Ok(TgResponse {ok: false, description, ..}) => {
+                                            error!("/publish #{}: Bot API error: {:?}", ri.id, description);
+                                            iron::status::InternalServerError
+                                        },
+                                        Ok(_) => {
+                                            info!("/publish #{}: message and album posted", ri.id);
+                                            iron::status::Ok
+                                        },
+                                    }
+                                }
+                            }
                         }
+                    } else {
+                        iron::status::InternalServerError // guard
                     }
+                } else {
+                    iron::status::InternalServerError // arc
                 }
             } else {
-                iron::status::InternalServerError
+                iron::status::InternalServerError // fetch report
             }
         },
         Ok(None) => {
@@ -416,6 +426,7 @@ fn main() {
 
     let botstate = BotState {
         places: Vec::new(),
+        fishes: Vec::new(),
         cache: HashMap::new(),
         top_ids: Vec::new(),
     };

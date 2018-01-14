@@ -26,17 +26,33 @@ pub struct RfFishingType {
 }
 
 #[derive(Deserialize)]
+pub struct RfFish {
+    id: u32,
+    name: String,
+}
+
+#[derive(Deserialize)]
+pub struct RfFishReport {
+    pub fish_id: u32,
+    pub qty: Option<u32>,
+    pub weight: Option<f32>,
+    pub featured: bool,
+    pub baits: Vec<String>,
+}
+
+#[derive(Deserialize)]
 pub struct RfReportInfo {
     pub id: i32,
     pub title: String,
     pub short_description: String,
     pub url: String,
-    pub place: RfPlace,
+    pub place: Option<RfPlace>,
     pub photos: Vec<RfReportPhoto>,
     pub start_at: String,
-    pub rating: u32,
+    pub rating: Option<u32>,
     pub fishing_types: Vec<RfFishingType>,
-    pub featured_image: String,
+    pub featured_image: Option<String>,
+    pub report_fishes: Vec<RfFishReport>,
 }
 
 #[derive(Deserialize)]
@@ -135,6 +151,27 @@ impl RfApi {
     pub fn new() -> RfApi {
         RfApi {
             http_client: reqwest::Client::new(),
+        }
+    }
+
+    pub fn fetch_all_fish(&self) -> Vec<RfFish> {
+        let url = format!("{}/{}", RIVNEFISHURL, "fish");
+
+        match self.http_client.get(&url).send() {
+            Ok(resp) => match serde_json::from_reader::<reqwest::Response, Vec<RfFish>>(resp) {
+                Ok(ps) => {
+                    info!("fetched {} fish kinds", ps.len());
+                    ps
+                }
+                Err(e) => {
+                    error!("error parsing rivnefish fish kinds: {}", &e);
+                    Vec::new()
+                }
+            },
+            Err(e) => {
+                error!("error reading rivnefish response: {}", &e);
+                Vec::new()
+            }
         }
     }
 
@@ -260,22 +297,30 @@ r#"<b>{n}</b><a href="{t}">&#160;</a>
     )
 }
 
-pub fn get_report_text(report: &RfReportInfo, place: &RfPlaceInfo) -> String {
+pub fn get_report_text(report: &RfReportInfo, place: Option<&RfPlaceInfo>, fishes: &[RfFish]) -> String {
     format!(
-r#"<b>{t}</b><a href="{fi}">&#160;</a>
-<b>Оцінка цієї риболовлі</b> {r}
-
-<b>Рибне місце:</b> <a href="{pu}">{pn}</a> (середній рейтинг: {pr})
+r#"<b>{t}</b>{fi}
+{r}
+{p}
 <b>Тип рибалки:</b>{f}
 <b>Дата:</b> {d}
+<b>Спіймана риба:</b>{fs}
 
 <i>{s}</i>"#,
         t = report.title,
-        fi = report.featured_image,
-        r = "&#x2B50".repeat(report.rating as usize),
-        pu = place.url,
-        pn = place.name,
-        pr = place.rating_str,
+        fi = report.featured_image.as_ref()
+            .map(|s| format!("<a href=\"{}\">&#160;</a>", s))
+            .unwrap_or_default(),
+        r = report.rating.map(|r| format!(
+            "<b>Оцінка цієї риболовлі</b> {}\n",
+            "&#x2B50".repeat(r as usize),
+        )).unwrap_or_default(),
+        p = place.map(|p| format!(
+            "<b>Рибне місце:</b> <a href=\"{pu}\">{pn}</a> (середній рейтинг: {pr})\n",
+            pu = p.url,
+            pn = p.name,
+            pr = p.rating_str,
+        )).unwrap_or_default(),
         f = report.fishing_types.iter().fold(
             String::new(),
             |mut acc, x| { acc.push(' '); acc.push_str(&x.name); acc }
@@ -283,6 +328,25 @@ r#"<b>{t}</b><a href="{fi}">&#160;</a>
         d = time::strptime(&report.start_at, "%FT%T.%f%z").ok()
             .and_then(|tm| time::strftime("%F", &tm).ok())
             .unwrap_or_default(),
+        fs = report.report_fishes.iter().fold(
+            String::new(),
+            |mut acc, x| { acc.push_str(&format!(
+                "\n&#x2022 {i}{q}{w}{t}{b}",
+
+                i = fishes.iter().find(|f| f.id == x.fish_id).map(|f| f.name.as_str()).unwrap_or("?"),
+                q = x.qty.map(|n| format!(" {}шт", n)).unwrap_or_default(),
+                w = x.weight.map(|n| format!(" {}кг", n)).unwrap_or_default(),
+                t = if x.featured {" &#x1F3C6"} else {""},
+                b = if !x.baits.is_empty() {
+                    let mut res = x.baits.iter().fold(
+                        " (".to_owned(),
+                        |mut acc, x| { acc.push(' '); acc.push_str(x); acc },
+                    );
+                    res.push_str(")");
+                    res
+                } else { "".to_owned() },
+            )); acc }
+        ),
         s = report.short_description,
     )
 }
