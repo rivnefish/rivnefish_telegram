@@ -6,17 +6,6 @@ use time;
 const RIVNEFISHURL: &str = "https://rivnefish.com/api/v1";
 
 #[derive(Deserialize)]
-struct RfPagination {
-    next_page: Option<usize>,
-}
-
-#[derive(Deserialize)]
-struct RfPage<Entry> {
-    meta: RfPagination,
-    data: Vec<Entry>,
-}
-
-#[derive(Deserialize)]
 pub struct RfReportPhoto {
     pub medium_url: String,
 }
@@ -101,32 +90,6 @@ pub struct RfPlaceInfo {
     pub id: i32,
 }
 
-struct RfPageIter<'a> {
-    api: &'a RfApi,
-    next_page: Option<usize>,
-}
-
-impl<'a> RfPageIter<'a> {
-    fn new(api: &'a RfApi) -> Self {
-        Self { api, next_page: Some(1) }
-    }
-}
-
-impl<'a> Iterator for RfPageIter<'a> {
-    type Item = Vec<RfReportInfo>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.next_page.is_none() { return None };
-
-        let pageid = self.next_page.unwrap();
-        let page = self.api.fetch_reports_page(pageid);
-
-        self.next_page = page.as_ref().and_then(|p| p.meta.next_page);
-
-        page.map(|p| p.data)
-    }
-}
-
 pub struct RfApi {
     http_client: reqwest::Client,
 }
@@ -145,18 +108,6 @@ impl RfApi {
                 serde_json::from_reader::<reqwest::Response, T>(r)
                     .map_err(|e| e.to_string())
             )
-    }
-
-    fn fetch_reports_page(&self, pageid: usize) -> Option<RfPage<RfReportInfo>> {
-        let url = format!("{}/{}?page={}", RIVNEFISHURL, "reports", pageid);
-
-        match self.fetch::<RfPage<RfReportInfo>>(&url) {
-            Ok(p) => Some(p),
-            Err(e) => {
-                error!("fetching reports page #{}: {}", pageid, e);
-                None
-            },
-        }
     }
 
     pub fn fetch_all_fish(&self) -> Vec<RfFish> {
@@ -202,13 +153,15 @@ impl RfApi {
     }
 
     pub fn fetch_report_info(&self, reportid: i32) -> Option<RfReportInfo> {
-        let page_iter = RfPageIter::new(&self);
-        for rs in page_iter {
-            if let Some(rpt) = rs.into_iter().find(|rpt| rpt.id == reportid) {
-                return Some(rpt);
+        let url = format!("{}/{}/{}", RIVNEFISHURL, "reports", reportid);
+
+        match self.fetch::<RfReportInfo>(&url) {
+            Ok(ri) => Some(ri),
+            Err(e) => {
+                error!("fetching report #{}: {}", reportid, e);
+                None
             }
         }
-        None
     }
 }
 
