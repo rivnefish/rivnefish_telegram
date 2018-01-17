@@ -9,6 +9,7 @@ use std::fmt::Write;
 pub struct TgChat {
     pub id: i64,
     #[serde(rename = "type")] type_: String,
+    pub username: Option<String>,
 }
 
 impl TgChat {
@@ -27,7 +28,7 @@ pub struct TgResponse<R> {
 
 #[derive(Deserialize, Debug)]
 pub struct TgUser {
-    pub id: i64,
+    pub id: i32,
     first_name: String,
     last_name: Option<String>,
     username: Option<String>,
@@ -48,7 +49,7 @@ impl TgMessageEntity {
 
 #[derive(Deserialize, Debug)]
 pub struct TgMessage {
-    message_id: u64,
+    message_id: i32,
     pub from: Option<TgUser>,
     date: u64,
     pub chat: TgChat,
@@ -58,7 +59,7 @@ pub struct TgMessage {
 
 #[derive(Deserialize, Debug)]
 pub struct TgMessageLite {
-    pub message_id: u64,
+    pub message_id: i32,
     pub chat: TgChat,
 }
 
@@ -101,7 +102,7 @@ pub struct TgSendMsg {
     chat_id: TgChatId,
     text: String,
     #[serde(skip_serializing_if = "Option::is_none")] parse_mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] reply_to_message_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")] reply_to_message_id: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
 
@@ -130,13 +131,14 @@ struct TgSendMediaGroup {
 #[derive(Serialize)]
 pub struct TgEditMsgReplyMarkup {
     chat_id: TgChatId,
-    message_id: u64,
+    message_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")] reply_markup: Option<TgInlineKeyboardMarkup>,
 }
 
 #[derive(Serialize)]
 pub struct TgAnswerCBQ {
     callback_query_id: String,
+    text: Option<String>, // notification text
 }
 
 #[derive(Serialize, Debug)]
@@ -265,11 +267,12 @@ impl<'a> TgBotApi<'a> {
         }
     }
 
-    pub fn answer_cbq(&self, id: String) {
+    pub fn answer_cbq(&self, id: String, txt: Option<String>) {
         self.send_json(
             "/answerCallbackQuery",
             TgAnswerCBQ {
                 callback_query_id: id,
+                text: txt,
             },
         );
     }
@@ -326,7 +329,7 @@ impl<'a> TgBotApi<'a> {
         )
     }
 
-    pub fn send_reply(&self, text: String, mid: u64, chatid: TgChatId) {
+    pub fn send_reply(&self, text: String, mid: i32, chatid: TgChatId) {
         self.send_json(
             "/sendMessage",
             TgSendMsg {
@@ -353,7 +356,7 @@ impl<'a> TgBotApi<'a> {
         )
     }
 
-    pub fn update_kb(&self, msgid: u64, kb: TgInlineKeyboardMarkup, chatid: TgChatId) {
+    pub fn update_kb(&self, msgid: i32, kb: TgInlineKeyboardMarkup, chatid: TgChatId) {
         self.send_json(
             "/editMessageReplyMarkup",
             TgEditMsgReplyMarkup {

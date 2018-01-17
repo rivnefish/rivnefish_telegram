@@ -23,7 +23,7 @@ use time::PreciseTime;
 
 use std::sync::{Arc, RwLock};
 use std::io::Write;
-use std::collections::HashMap;
+use std::collections::hash_map::{HashMap, Entry};
 
 #[allow(dead_code)]
 mod telegram;
@@ -57,6 +57,19 @@ fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo
     fetched
 }
 
+fn make_report_kb(kbdata: &KbData) -> TgInlineKeyboardMarkup {
+    TgInlineKeyboardMarkup { inline_keyboard: vec![vec![
+        TgInlineKeyboardButton::Cb {
+            text: format!("\u{1F44D} {}", kbdata.votes.len()),
+            callback_data: "u".to_owned(),
+        },
+        TgInlineKeyboardButton::Url {
+            text: "переглянути на вебсайті".to_owned(),
+            url: kbdata.url.clone(),
+        },
+    ]]}
+}
+
 type SafeBotState = Arc<RwLock<<BotState as Key>::Value>>;
 
 fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) {
@@ -71,7 +84,51 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) 
             ..
         } => {
             info!("CIR: resuldid: {}, inline msg id: {}", result_id, imi);
-        }
+        },
+        TgUpdate {
+            message: None,
+            callback_query: Some(TgCallbackQuery {
+                id: cbq_id,
+                from: user,
+                message: Some(TgMessageLite{message_id, chat}),
+                data: Some(d)
+            }),
+            inline_query: None,
+            ..
+        } => {
+            info!("CBQ: id: {} from: {} msgid: {} chat: {:?} data: {}", cbq_id, user.id, message_id, chat.username, d);
+            if let Some(username) = chat.username {
+                if username == &cfg.channel[1..] && d == "u" { // NOTE: username is not prefixed with @
+                    if let Ok(mut guard) = st.write() {
+                        let bs = &mut *guard;
+                        match bs.kbdata.entry(message_id) {
+                            Entry::Occupied(mut e) => {
+                                let kbdata = e.get_mut();
+                                if let Some(i) = kbdata.votes.iter().position(|x| *x == user.id) {
+                                    kbdata.votes.swap_remove(i);
+                                } else {
+                                    kbdata.votes.push(user.id);
+                                }
+                                tg.update_kb(
+                                    message_id,
+                                    make_report_kb(kbdata),
+                                    TgChatId::Username(format!("@{}", username)), // NOTE: should be prefixed with @
+                                );
+                                tg.answer_cbq(cbq_id, Some("ваш голос враховано".to_owned()));
+                            },
+                            Entry::Vacant(_) => {
+                                error!("no kbdata for this message_id");
+                                tg.answer_cbq(cbq_id, None);
+                            },
+                        }
+                    }
+                } else {
+                    info!("ignore unknown CBQ");
+                }
+            } else {
+                info!("ignore this chat");
+            }
+        },
         TgUpdate {
             message: None,
             callback_query: None,
@@ -166,11 +223,23 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) 
     }
 }
 
+type PostId = i32;
+type UserId = i32;
+
+
+#[derive(Serialize, Deserialize, Clone)]
+struct KbData {
+    url: String,
+    votes: Vec<UserId>,
+}
+
+#[derive(Default)]
 struct BotState {
     places: Vec<RfPlace>,
     fishes: Vec<RfFish>,
     cache: HashMap<i32, Option<RfPlaceInfo>>,
     top_ids: Vec<i32>,
+    kbdata: HashMap<PostId, KbData>,
 }
 
 impl Key for BotState {
@@ -178,8 +247,7 @@ impl Key for BotState {
 }
 
 fn modify_bot_state<F>(req: &mut Request, f: F)
-where
-    F: FnOnce(&mut BotState),
+    where F: FnOnce(&mut BotState),
 {
     if let Ok(arc_st) = req.get::<State<BotState>>() {
         if let Ok(mut guard) = arc_st.write() {
@@ -188,6 +256,48 @@ where
             f(bs);
         }
     }
+}
+
+fn load_state(req: &mut Request) -> IronResult<Response> {
+    let status = match req.get::<bodyparser::Struct<HashMap<PostId, KbData>>>() {
+        Ok(Some(kbdata)) => {
+            modify_bot_state(req, |bs: &mut BotState| {
+                bs.kbdata = kbdata;
+                info!("loaded state");
+            });
+            iron::status::Ok
+        },
+        Ok(None) => {
+            info!("/load_state request has empty body");
+            iron::status::BadRequest
+        },
+        Err(err) => {
+            error!("/load_state: {:?}", err);
+            iron::status::BadRequest
+        },
+    };
+
+    Ok(Response::with(status))
+}
+
+fn save_state(req: &mut Request) -> IronResult<Response> {
+    if let Ok(arc_st) = req.get::<State<BotState>>() {
+        if let Ok(guard) = arc_st.read() {
+            let bs = &guard;
+            let resp = if let Ok(s) = serde_json::to_string(&bs.kbdata) {
+                Response::with((
+                    iron::status::Ok,
+                    iron::modifiers::Header(iron::headers::ContentType::json()),
+                    s,
+                ))
+            } else {
+                Response::with(iron::status::InternalServerError)
+            };
+            return Ok(resp);
+        }
+    }
+    
+    Ok(Response::with(iron::status::InternalServerError))
 }
 
 fn reload_places(req: &mut Request) -> IronResult<Response> {
@@ -302,48 +412,58 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                 if let Ok(arc_st) = req.get::<State<BotState>>() {
                     let pi = ri.place.as_ref().and_then(|p| get_info_for(&arc_st, &fish, p.id));
                     let tg = TgBotApi::new(&cfg.bottoken);
-                    if let Ok(g) = arc_st.read() {
-                        let text = fish::get_report_text(&ri, pi.as_ref(), &g.fishes);
-                        let chat = TgChatId::Username(cfg.channel.clone());
-                        match tg.send_rich_text(
-                            text, chat.clone(),
-                            Some(TgInlineKeyboardMarkup::url_button(
-                                "переглянути на вебсайті".to_owned(),
-                                ri.url.clone(),
-                            )),
-                        ) {
-                            Err(err) => {
-                                error!("/publish #{}: {:?}", ri.id, err);
-                                iron::status::InternalServerError
-                            },
-                            Ok(TgResponse {ok: false, description, ..}) => {
-                                error!("/publish #{}: Bot API error: {:?}", ri.id, description);
-                                iron::status::InternalServerError
-                            },
-                            Ok(_) => {
-                                if ri.photos.is_empty() {
-                                    info!("/publish #{}: message (no photos) posted", ri.id);
-                                    iron::status::Ok
-                                } else {
-                                    match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
-                                        Err(err) => {
-                                            error!("/publish #{}: {:?}", ri.id, err);
-                                            iron::status::InternalServerError
-                                        },
-                                        Ok(TgResponse {ok: false, description, ..}) => {
-                                            error!("/publish #{}: Bot API error: {:?}", ri.id, description);
-                                            iron::status::InternalServerError
-                                        },
-                                        Ok(_) => {
-                                            info!("/publish #{}: message and album posted", ri.id);
-                                            iron::status::Ok
-                                        },
-                                    }
+                    let chat = TgChatId::Username(cfg.channel.clone());
+                    let kbdata = KbData {
+                        url: ri.url.clone(),
+                        votes: Vec::new(),
+                    };
+                    let resp = if let Ok(g) = arc_st.read() {
+                        tg.send_rich_text(
+                            fish::get_report_text(&ri, pi.as_ref(), &g.fishes),
+                            chat.clone(),
+                            Some(make_report_kb(&kbdata)),
+                        )
+                    } else {
+                        Err(String::default())
+                    };
+                    match resp {
+                        Err(err) => {
+                            error!("/publish #{}: {:?}", ri.id, err);
+                            iron::status::InternalServerError
+                        },
+                        Ok(TgResponse {ok: false, description, ..}) => {
+                            error!("/publish #{}: Bot API error: {:?}", ri.id, description);
+                            iron::status::InternalServerError
+                        },
+                        Ok(TgResponse {ok: true, result: None, ..}) => {
+                            error!("/publish #{}: Bot API did not return msg", ri.id);
+                            iron::status::InternalServerError
+                        },
+                        Ok(TgResponse {ok: true, result: Some(TgMessageLite {message_id, ..}), ..}) => {
+                            if let Ok(mut guard) = arc_st.write() {
+                                let bs = &mut *guard;
+                                bs.kbdata.entry(message_id).or_insert(kbdata);
+                            }
+                            if ri.photos.is_empty() {
+                                info!("/publish #{}: message (no photos) posted", ri.id);
+                                iron::status::Ok
+                            } else {
+                                match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {
+                                    Err(err) => {
+                                        error!("/publish #{}: {:?}", ri.id, err);
+                                        iron::status::InternalServerError
+                                    },
+                                    Ok(TgResponse {ok: false, description, ..}) => {
+                                        error!("/publish #{}: Bot API error: {:?}", ri.id, description);
+                                        iron::status::InternalServerError
+                                    },
+                                    Ok(_) => {
+                                        info!("/publish #{}: message and album posted", ri.id);
+                                        iron::status::Ok
+                                    },
                                 }
                             }
                         }
-                    } else {
-                        iron::status::InternalServerError // guard
                     }
                 } else {
                     iron::status::InternalServerError // arc
@@ -423,13 +543,10 @@ fn main() {
     router.post("/set_top", set_top, "set_top");
     router.post("/announce", announce_handler, "announce");
     router.post("/publish", publish_handler, "publish");
+    router.post("/load_state", load_state, "load_state");
+    router.get("/save_state", save_state, "save_state");
 
-    let botstate = BotState {
-        places: Vec::new(),
-        fishes: Vec::new(),
-        cache: HashMap::new(),
-        top_ids: Vec::new(),
-    };
+    let botstate = BotState::default();
 
     let mut chain = Chain::new(router);
     chain.link(State::<BotState>::both(botstate));
