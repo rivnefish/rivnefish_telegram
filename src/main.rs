@@ -444,8 +444,8 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                                 let bs = &mut *guard;
                                 bs.kbdata.entry(message_id).or_insert(kbdata);
                             }
-                            if ri.photos.is_empty() {
-                                info!("/publish #{}: message (no photos) posted", ri.id);
+                            if ri.photos.len() < 2 {
+                                info!("/publish #{}: message (no album) posted", ri.id);
                                 iron::status::Ok
                             } else {
                                 match tg.send_album(ri.photos.iter().map(|p| &p.medium_url), chat) {

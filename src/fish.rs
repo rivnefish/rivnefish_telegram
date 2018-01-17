@@ -237,13 +237,34 @@ r#"<b>{n}</b><a href="{t}">&#160;</a>
     )
 }
 
+fn build_fish_entry(x: &RfFishReport, fishes: &[RfFish]) -> String {
+    format!(
+        "{i}{q}{w}{t}{b}",
+        i = fishes.iter().find(|f| f.id == x.fish_id).map(|f| f.name.as_str()).unwrap_or("?"),
+        q = x.qty.map(|n| format!(" {}шт", n)).unwrap_or_default(),
+        w = x.weight.map(|n| format!(" {}кг", n)).unwrap_or_default(),
+        t = if x.featured {" &#x1F3C6"} else {""},
+        b = if !x.baits.is_empty() {
+            let mut res = x.baits.iter().fold(
+                " (".to_owned(),
+                |mut acc, x| { acc.push(' '); acc.push_str(x); acc },
+            );
+            res.push_str(")");
+            res
+        } else { "".to_owned() },
+    )
+}
+
 pub fn get_report_text(report: &RfReportInfo, place: Option<&RfPlaceInfo>, fishes: &[RfFish]) -> String {
+    let mut results = report.report_fishes.iter()
+        .map(|r| build_fish_entry(r, fishes))
+        .collect::<Vec<_>>();
+    results.sort();
+
     format!(
 r#"<b>{t}</b>{fi}
-{r}
 {p}
 <b>Тип рибалки:</b>{f}
-<b>Дата:</b> {d}
 <b>Спіймана риба:</b>{fs}
 
 <i>{s}</i>"#,
@@ -251,12 +272,8 @@ r#"<b>{t}</b>{fi}
         fi = report.featured_image.as_ref()
             .map(|s| format!("<a href=\"{}\">&#160;</a>", s))
             .unwrap_or_default(),
-        r = report.rating.map(|r| format!(
-            "<b>Оцінка цієї риболовлі</b> {}\n",
-            "&#x2B50".repeat(r as usize),
-        )).unwrap_or_default(),
         p = place.map(|p| format!(
-            "<b>Рибне місце:</b> <a href=\"{pu}\">{pn}</a> (середній рейтинг: {pr})\n",
+            "<b>Місце:</b> <a href=\"{pu}\">{pn}</a> &#x2B50 {pr}",
             pu = p.url,
             pn = p.name,
             pr = p.rating_str,
@@ -265,28 +282,10 @@ r#"<b>{t}</b>{fi}
             String::new(),
             |mut acc, x| { acc.push(' '); acc.push_str(&x.name); acc }
         ),
-        d = time::strptime(&report.start_at, "%FT%T.%f%z").ok()
-            .and_then(|tm| time::strftime("%F", &tm).ok())
-            .unwrap_or_default(),
-        fs = report.report_fishes.iter().fold(
+        fs = results.iter().fold(
             String::new(),
-            |mut acc, x| { acc.push_str(&format!(
-                "\n&#x2022 {i}{q}{w}{t}{b}",
-
-                i = fishes.iter().find(|f| f.id == x.fish_id).map(|f| f.name.as_str()).unwrap_or("?"),
-                q = x.qty.map(|n| format!(" {}шт", n)).unwrap_or_default(),
-                w = x.weight.map(|n| format!(" {}кг", n)).unwrap_or_default(),
-                t = if x.featured {" &#x1F3C6"} else {""},
-                b = if !x.baits.is_empty() {
-                    let mut res = x.baits.iter().fold(
-                        " (".to_owned(),
-                        |mut acc, x| { acc.push(' '); acc.push_str(x); acc },
-                    );
-                    res.push_str(")");
-                    res
-                } else { "".to_owned() },
-            )); acc }
+            |mut acc, x| { acc.push_str(&format!("\n&#x2022 {}", x)); acc }
         ),
-        s = report.short_description,
+        s = report.short_description.trim(),
     )
 }
