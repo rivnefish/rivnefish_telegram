@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "rvfish_bot"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "bodyparser 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
