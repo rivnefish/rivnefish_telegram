@@ -238,21 +238,28 @@ r#"<b>{n}</b><a href="{t}">&#160;</a>
 }
 
 fn build_fish_entry(x: &RfFishReport, fishes: &[RfFish]) -> String {
-    format!(
-        "{i}{q}{w}{t}{b}",
+
+    let mut result = format!("{i}{q}{w}{t}",
         i = fishes.iter().find(|f| f.id == x.fish_id).map(|f| f.name.as_str()).unwrap_or("?"),
         q = x.qty.map(|n| format!(" {}шт", n)).unwrap_or_default(),
         w = x.weight.map(|n| format!(" {}кг", n)).unwrap_or_default(),
         t = if x.featured {" &#x1F3C6"} else {""},
-        b = if !x.baits.is_empty() {
-            let mut res = x.baits.iter().fold(
-                " (".to_owned(),
-                |mut acc, x| { acc.push(' '); acc.push_str(x); acc },
-            );
-            res.push_str(")");
-            res
-        } else { "".to_owned() },
-    )
+    );
+
+    if !x.baits.is_empty() {
+        result.push_str(" (");
+        let mut it = x.baits.iter();
+        result.push_str(it.next().unwrap().as_str());
+
+        while let Some(s) = it.next() {
+            result.push_str(", ");
+            result.push_str(s.as_str());
+        }
+
+        result.push_str(")");
+    }
+
+    result
 }
 
 pub fn get_report_text(report: &RfReportInfo, place: Option<&RfPlaceInfo>, fishes: &[RfFish]) -> String {
