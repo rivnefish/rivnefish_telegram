@@ -444,7 +444,7 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                                 let bs = &mut *guard;
                                 bs.kbdata.entry(message_id).or_insert(kbdata);
                             }
-                            if ri.photos.len() < 2 {
+                            if ri.photos.len() < 2 || !cfg.publishalbums {
                                 info!("/publish #{}: message (no album) posted", ri.id);
                                 iron::status::Ok
                             } else {
@@ -491,6 +491,7 @@ struct Config {
     channel: String,
     listenpath: String,
     listenaddr: String,
+    publishalbums: bool,
 }
 
 lazy_static! {
@@ -500,6 +501,7 @@ lazy_static! {
         channel: std::env::var("RVFISH_CHANNEL").unwrap_or_default(),
         listenpath: std::env::var("RVFISH_LISTENPATH").unwrap_or_else(|_| "/bot".to_owned()),
         listenaddr: std::env::var("RVFISH_LISTENADDR").unwrap_or_else(|_| "localhost:2358".to_owned()),
+        publishalbums: std::env::var("RVFISH_PUBLISHALBUMS").map(|s| s == "yes").unwrap_or_default(),
     };
 }
 

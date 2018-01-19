@@ -29,6 +29,7 @@ All binaries can be found [here](https://bintray.com/chyvonomys/rivnefish_telegr
   export RVFISH_BOTNAME=@<botname>
   export RVFISH_BOTTOKEN=<bottoken>
   export RVFISH_CHANNEL=@<channel>
+  export RVFISH_PUBLISHALBUMS=yes
   ```
 3. Run the executable:
   ```
@@ -71,6 +72,7 @@ Content-Type: application/json
 ```
    This will post a nice card with report details and photos in channel configured by `RVFISH_CHANNEL` env variable.
    Intended usage: automatically notify channel subscribers when new report appears (webhook for site).
+   If `RVFISH_PUBLISHALBUMS` is set to `yes` then it will also post album of photos (if any). By default this option is turned off.
 
 These requests return:
 - `200 OK` on success
