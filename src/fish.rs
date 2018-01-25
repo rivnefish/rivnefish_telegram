@@ -239,9 +239,11 @@ r#"<b>{n}</b><a href="{t}">&#160;</a>
 
 fn build_fish_entry(x: &RfFishReport, fishes: &[RfFish]) -> String {
 
-    let mut result = format!("{i}{q}{w}{t}",
+    let mut result = format!("{i}{c}{q}{s}{w}{t}",
         i = fishes.iter().find(|f| f.id == x.fish_id).map(|f| f.name.as_str()).unwrap_or("?"),
+        c = if x.qty.is_some() || x.weight.is_some() {":"} else {""},
         q = x.qty.map(|n| format!(" {}шт", n)).unwrap_or_default(),
+        s = if x.qty.is_some() && x.weight.is_some() {","} else {""},
         w = x.weight.map(|n| format!(" {}кг", n)).unwrap_or_default(),
         t = if x.featured {" &#x1F3C6"} else {""},
     );
@@ -268,10 +270,20 @@ pub fn get_report_text(report: &RfReportInfo, place: Option<&RfPlaceInfo>, fishe
         .collect::<Vec<_>>();
     results.sort();
 
+    let mut types = String::new();
+    if !report.fishing_types.is_empty() {
+        let mut it = report.fishing_types.iter();
+        types.push_str(it.next().unwrap().name.as_str());
+        while let Some(s) = it.next() {
+            types.push_str(", ");
+            types.push_str(s.name.as_str());
+        }
+    }
+
     format!(
 r#"<b>{t}</b>{fi}
 {p}
-<b>Тип рибалки:</b>{f}
+<b>Тип рибалки:</b> {f}
 <b>Спіймана риба:</b>{fs}
 
 <i>{s}</i>"#,
@@ -285,10 +297,7 @@ r#"<b>{t}</b>{fi}
             pn = p.name,
             pr = p.rating_str,
         )).unwrap_or_default(),
-        f = report.fishing_types.iter().fold(
-            String::new(),
-            |mut acc, x| { acc.push(' '); acc.push_str(&x.name); acc }
-        ),
+        f = types,
         fs = results.iter().fold(
             String::new(),
             |mut acc, x| { acc.push_str(&format!("\n&#x2022 {}", x)); acc }
