@@ -519,7 +519,7 @@ fn main() {
     }).filter(None, log::LevelFilter::Info);
 
     if let Ok(ref lcfg) = std::env::var("RUST_LOG") {
-        log_builder.parse(lcfg);
+        log_builder.parse_filters(lcfg);
     }
 
     log_builder.init();

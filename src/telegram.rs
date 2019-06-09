@@ -224,11 +224,9 @@ impl<'a> TgBotApi<'a> {
         url.push_str(self.api_token);
         url.push_str(method);
         if let Ok(bod) = serde_json::to_string(&obj) {
-            let mut hs = reqwest::header::Headers::new();
-            hs.set(reqwest::header::ContentType::json());
             if let Err(e) = self.http_client
                 .post(&url)
-                .headers(hs)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(bod)
                 .send()
             {
@@ -248,11 +246,9 @@ impl<'a> TgBotApi<'a> {
                 url.push_str(self.api_token);
                 url.push_str(method);
 
-                let mut hs = reqwest::header::Headers::new();
-                hs.set(reqwest::header::ContentType::json());
                 match self.http_client
                     .post(&url)
-                    .headers(hs)
+                    .header(reqwest::header::CONTENT_TYPE, "application/json")
                     .body(bod)
                     .send()
                 {

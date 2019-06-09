@@ -52,6 +52,12 @@ pub struct RfPlace {
 }
 
 #[derive(Deserialize)]
+pub struct RfPlaceContact {
+    pub name: String,
+    pub phone: String,
+}
+
+#[derive(Deserialize)]
 pub struct RfPlaceInfoRaw {
     pub name: String,
     pub url: String,
@@ -59,8 +65,7 @@ pub struct RfPlaceInfoRaw {
     pub address: Option<String>,
     pub rating_avg: Option<String>,
     pub rating_votes: Option<i32>,
-    pub contact_name: Option<String>,
-    pub contact_phone: Option<String>,
+    pub place_contacts: Vec<RfPlaceContact>,
     pub thumbnail: Option<String>,
     pub featured_image: Option<String>,
     pub permit: Option<String>, // "free", "paid", "prohibited"
@@ -84,7 +89,7 @@ pub struct RfPlaceInfo {
     pub area_str: Option<String>,
     pub hours_str: Option<String>,
     pub update_str: Option<String>,
-    pub contact_str: Option<String>,
+    pub contact_strs: Vec<String>,
     pub desc_short: String,
     pub url: String,
     pub id: i32,
@@ -196,17 +201,9 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
         update_str: pi.info_updated_at
             .and_then(|s| time::strptime(&s, "%FT%T.%f%z").ok())
             .and_then(|tm| time::strftime("%F", &tm).ok()),
-        contact_str: match (pi.contact_phone, pi.contact_name) {
-            (Some(ref p), _) if p.is_empty() => None,
-            (Some(p), Some(n)) => Some(format!(
-                "{}{} {}",
-                if p.starts_with("380") { "+" } else { "" },
-                p,
-                n
-            )),
-            (Some(p), None) => Some(p),
-            _ => None,
-        },
+        contact_strs: pi.place_contacts.iter().map(|c|
+            format!("{}{} {}", if c.phone.starts_with("380") { "+" } else { "" }, c.phone, c.name)
+        ).collect(),
         desc_short: pi.address.unwrap_or_default(),
         url: pi.url,
         id: pi.id,
@@ -214,6 +211,13 @@ fn normalize_place_info(pi: RfPlaceInfoRaw) -> RfPlaceInfo {
 }
 
 pub fn get_place_text(place: &RfPlaceInfo) -> String {
+    let mut contacts = String::new();
+    place.contact_strs.iter().for_each(|s| {
+        contacts.push_str("&#x1F4DE; ");
+        contacts.push_str(s);
+        contacts.push_str("\n");
+    });
+
     format!(
 r#"<b>{n}</b><a href="{t}">&#160;</a>
 &#x2B50; {r} <a href="{u}/reports">(звітів: {v})</a>
@@ -231,7 +235,7 @@ r#"<b>{n}</b><a href="{t}">&#160;</a>
         a = place.area_str.as_ref().map(|s| format!("&#x25FB; {} ", s)).unwrap_or_default(),
         h = place.hours_str.as_ref().map(|s| format!("&#x23F0; {} ", s)).unwrap_or_default(),
         d = place.update_str.as_ref().map(|s| format!("&#x1F504; {}", s)).unwrap_or_default(),
-        c = place.contact_str.as_ref().map(|s| format!("&#x1F4DE; {}\n", s)).unwrap_or_default(),
+        c = contacts,
         p = place.payment_str,
         i = place.payment_info,
     )
