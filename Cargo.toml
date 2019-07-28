@@ -1,6 +1,6 @@
 [package]
 name = "rvfish_bot"
-version = "0.4.5"
+version = "0.4.6"
 authors = ["Andriy Chyvonomys <sima.rv@gmail.com>"]
 
 [dependencies]
@@ -13,6 +13,6 @@ serde = "*"
 serde_derive = "*"
 serde_json = "*"
 time = "*"
-log = "*"
-env_logger = "*"
+log = "0.4"
+env_logger = "0.6"
 lazy_static = "*"
