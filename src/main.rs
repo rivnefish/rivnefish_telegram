@@ -57,11 +57,21 @@ fn get_info_for(st: &SafeBotState, rfapi: &RfApi, id: i32) -> Option<RfPlaceInfo
     fetched
 }
 
-fn make_report_kb(kbdata: &KbData) -> TgInlineKeyboardMarkup {
+fn make_cbq_data(msg: i32) -> String {
+    format!("u{}", msg)
+}
+
+fn parse_cbq_data(d: &str) -> Option<i32> {
+    d.bytes().nth(0)
+        .filter(|zth| *zth == b'u')
+        .and_then(|_| i32::from_str_radix(&d[1..], 10).ok())
+}
+
+fn make_report_kb(kbdata: &KbData, message_id: i32) -> TgInlineKeyboardMarkup {
     TgInlineKeyboardMarkup { inline_keyboard: vec![vec![
         TgInlineKeyboardButton::Cb {
             text: format!("\u{1F44D} {}", kbdata.votes.len()),
-            callback_data: "u".to_owned(),
+            callback_data: make_cbq_data(message_id),
         },
         TgInlineKeyboardButton::Url {
             text: "переглянути на вебсайті".to_owned(),
@@ -96,37 +106,33 @@ fn process_update(st: &SafeBotState, upd: TgUpdate, updstr: &str, cfg: &Config) 
             inline_query: None,
             ..
         } => {
-            info!("CBQ: id: {} from: {} msgid: {} chat: {:?} data: {}", cbq_id, user.id, message_id, chat.username, d);
-            if let Some(username) = chat.username {
-                if username == &cfg.channel[1..] && d == "u" { // NOTE: username is not prefixed with @
-                    if let Ok(mut guard) = st.write() {
-                        let bs = &mut *guard;
-                        match bs.kbdata.entry(message_id) {
-                            Entry::Occupied(mut e) => {
-                                let kbdata = e.get_mut();
-                                if let Some(i) = kbdata.votes.iter().position(|x| *x == user.id) {
-                                    kbdata.votes.swap_remove(i);
-                                } else {
-                                    kbdata.votes.push(user.id);
-                                }
-                                tg.update_kb(
-                                    message_id,
-                                    make_report_kb(kbdata),
-                                    TgChatId::Username(format!("@{}", username)), // NOTE: should be prefixed with @
-                                );
-                                tg.answer_cbq(cbq_id, Some("ваш голос враховано".to_owned()));
-                            },
-                            Entry::Vacant(_) => {
-                                error!("no kbdata for this message_id");
-                                tg.answer_cbq(cbq_id, None);
-                            },
-                        }
+            info!("CBQ: id: {} from: {} msgid: {} chat: {:?} data: {}", cbq_id, user.id, message_id, chat, d);
+            if let Some(original_message_id) = parse_cbq_data(&d) {
+                if let Ok(mut guard) = st.write() {
+                    let bs = &mut *guard;
+                    match bs.kbdata.entry(original_message_id) {
+                        Entry::Occupied(mut e) => {
+                            let kbdata = e.get_mut();
+                            if let Some(i) = kbdata.votes.iter().position(|x| *x == user.id) {
+                                kbdata.votes.swap_remove(i);
+                            } else {
+                                kbdata.votes.push(user.id);
+                            }
+                            tg.update_kb(
+                                original_message_id,
+                                make_report_kb(kbdata, original_message_id),
+                                TgChatId::Username(cfg.channel.clone()),
+                            );
+                            tg.answer_cbq(cbq_id, Some("ваш голос враховано".to_owned()));
+                        },
+                        Entry::Vacant(_) => {
+                            error!("no kbdata for this message_id");
+                            tg.answer_cbq(cbq_id, None);
+                        },
                     }
-                } else {
-                    info!("ignore unknown CBQ");
                 }
             } else {
-                info!("ignore this chat");
+                info!("ignore unknown CBQ");
             }
         },
         TgUpdate {
@@ -421,7 +427,7 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                         tg.send_rich_text(
                             fish::get_report_text(&ri, pi.as_ref(), &g.fishes),
                             chat.clone(),
-                            Some(make_report_kb(&kbdata)),
+                            None,
                         )
                     } else {
                         Err(String::default())
@@ -440,6 +446,11 @@ fn publish(req: &mut Request, cfg: &Config) -> IronResult<Response> {
                             iron::status::InternalServerError
                         },
                         Ok(TgResponse {ok: true, result: Some(TgMessageLite {message_id, ..}), ..}) => {
+                            tg.update_kb(
+                                message_id,
+                                make_report_kb(&kbdata, message_id),
+                                TgChatId::Username(cfg.channel.clone()),
+                            );
                             if let Ok(mut guard) = arc_st.write() {
                                 let bs = &mut *guard;
                                 bs.kbdata.entry(message_id).or_insert(kbdata);
